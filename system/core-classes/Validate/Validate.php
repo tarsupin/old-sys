@@ -150,7 +150,7 @@ abstract class Validate {
 	// Validate::username($username);
 	{
 		// Retrieve configuration for the user
-		if(!Config::$extraData = Config::get("Username"))
+		if(!$userConfigs = Config::get("Username"))
 		{
 			Alert::error("Username Config", "Unable to retrieve configurations for username.");
 			
@@ -158,36 +158,36 @@ abstract class Validate {
 		}
 		
 		// Prepare Values
-		$lenReduce = Config::$extraData['Use Letter First'] ? 1 : 0;
-		$regexChars = preg_quote(Config::$extraData['Allow Special']);
+		$lenReduce = $userConfigs['Use Letter First'] ? 1 : 0;
+		$regexChars = preg_quote($userConfigs['Allow Special']);
 		
 		// Make sure the username is long enough
-		if(strlen($username) < Config::$extraData['Min Length'])
+		if(strlen($username) < $userConfigs['Min Length'])
 		{
-			Alert::error("Username Min Length", "Username requires " . Config::$extraData['Min Length'] . " characters.");
+			Alert::error("Username Min Length", "Username requires " . $userConfigs['Min Length'] . " characters.");
 			
 			return false;
 		}
 		
 		// Make sure the username isn't too long
-		if(strlen($username) > Config::$extraData['Max Length'])
+		if(strlen($username) > $userConfigs['Max Length'])
 		{
-			Alert::error("Username Max Length", "Username cannot exceed " . Config::$extraData['Max Length'] . " characters.");
+			Alert::error("Username Max Length", "Username cannot exceed " . $userConfigs['Max Length'] . " characters.");
 			
 			return false;
 		}
 		
 		// Set username to lowercase (if applicable)
-		if(Config::$extraData['Use Lowercase'])
+		if($userConfigs['Use Lowercase'])
 		{
 			$username = strtolower($username);
 		}
 		
 		// If the username requires a letter to be first
-		if(Config::$extraData['Use Letter First'])
+		if($userConfigs['Use Letter First'])
 		{
 			// Test if the username is valid
-			if(!preg_match('/^' . (Config::$extraData['Use Letter First'] ? '[a-zA-Z]{1}' : '') . '$/', $username[0]))
+			if(!preg_match('/^' . ($userConfigs['Use Letter First'] ? '[a-zA-Z]{1}' : '') . '$/', $username[0]))
 			{
 				Alert::error("Username FirstChar", "Username must start with a letter.");
 				
@@ -196,21 +196,21 @@ abstract class Validate {
 		}
 		
 		// Prepare values for the Regex Expression
-		$regexAppend = (Config::$extraData['Use Lowercase'] ? "" : "A-Z") . (Config::$extraData['Allow Special'] ? preg_quote(Config::$extraData['Allow Special']) : "");
+		$regexAppend = ($userConfigs['Use Lowercase'] ? "" : "A-Z") . ($userConfigs['Allow Special'] ? preg_quote($userConfigs['Allow Special']) : "");
 		
-		$regex = '/^' . (Config::$extraData['Use Letter First'] ? '[a-z' . $regexAppend . ']{1}' : '') . '[a-z' . $regexAppend . (Config::$extraData['Allow Numbers'] ? "0-9" : '') . ']{' . (Config::$extraData['Min Length'] - $lenReduce) . ',' . (Config::$extraData['Max Length'] - $lenReduce) . '}$/';
+		$regex = '/^' . ($userConfigs['Use Letter First'] ? '[a-z' . $regexAppend . ']{1}' : '') . '[a-z' . $regexAppend . ($userConfigs['Allow Numbers'] ? "0-9" : '') . ']{' . ($userConfigs['Min Length'] - $lenReduce) . ',' . ($userConfigs['Max Length'] - $lenReduce) . '}$/';
 		
 		// Test if the username is valid
 		if(!preg_match($regex, $username, $matches))
 		{
 			// If we're using special characters, error message must include them
-			if(Config::$extraData['Allow Special'])
+			if($userConfigs['Allow Special'])
 			{
-				Alert::error("Username Special", "Username can only use letters" . (Config::$extraData['Allow Numbers'] ? ", numbers," : "") . " and: " . Config::$extraData['Allow Special']);
+				Alert::error("Username Special", "Username can only use letters" . ($userConfigs['Allow Numbers'] ? ", numbers," : "") . " and: " . $userConfigs['Allow Special']);
 			}
 			else
 			{
-				Alert::error("Username Special", "Username can only use letters" . (Config::$extraData['Allow Numbers'] ? " and numbers" : "") . ".");
+				Alert::error("Username Special", "Username can only use letters" . ($userConfigs['Allow Numbers'] ? " and numbers" : "") . ".");
 			}
 			
 			return false;
@@ -230,7 +230,7 @@ abstract class Validate {
 	// Validate::password($password);
 	{
 		// Retrieve configuration for the password
-		if(!Config::$extraData = Config::get("Password"))
+		if(!$passConfigs = Config::get("Password"))
 		{
 			Alert::error("Password Config", "Unable to retrieve configurations for passwords.");
 			
@@ -238,60 +238,60 @@ abstract class Validate {
 		}
 		
 		// Make sure the password is long enough
-		if(strlen($password) < Config::$extraData['Min Length'])
+		if(strlen($password) < $passConfigs['Min Length'])
 		{
-			Alert::error("Password Min Length", "Password requires " . Config::$extraData['Min Length'] . " characters.");
+			Alert::error("Password Min Length", "Password requires " . $passConfigs['Min Length'] . " characters.");
 			
 			return false;
 		}
 		
 		// Make sure there are a sufficient number of upper-case characters
-		if(Config::$extraData['Min UpperCase'] > 0)
+		if($passConfigs['Min UpperCase'] > 0)
 		{
 			preg_match_all('/[A-Z]/', $password, $matches);
 			
-			if(count($matches[0]) < Config::$extraData['Min UpperCase'])
+			if(count($matches[0]) < $passConfigs['Min UpperCase'])
 			{
-				Alert::error("Password Min Upper", "Password requires " . Config::$extraData['Min UpperCase'] . " uppercase characters.");
+				Alert::error("Password Min Upper", "Password requires " . $passConfigs['Min UpperCase'] . " uppercase characters.");
 				
 				return false;
 			}
 		}
 		
 		// Make sure there are a sufficient number of lower-case characters
-		if(Config::$extraData['Min LowerCase'] > 0)
+		if($passConfigs['Min LowerCase'] > 0)
 		{
 			preg_match_all('/[a-z]/', $password, $matches);
 			
-			if(count($matches[0]) < Config::$extraData['Min LowerCase'])
+			if(count($matches[0]) < $passConfigs['Min LowerCase'])
 			{
-				Alert::error("Password Min Lower", "Password requires " . Config::$extraData['Min LowerCase'] . " lowercase characters.");
+				Alert::error("Password Min Lower", "Password requires " . $passConfigs['Min LowerCase'] . " lowercase characters.");
 				
 				return false;
 			}
 		}
 		
 		// Make sure there are a sufficient number of digits
-		if(Config::$extraData['Min Numbers'] > 0)
+		if($passConfigs['Min Numbers'] > 0)
 		{
 			preg_match_all('/[0-9]/', $password, $matches);
 			
-			if(count($matches[0]) < Config::$extraData['Min Numbers'])
+			if(count($matches[0]) < $passConfigs['Min Numbers'])
 			{
-				Alert::error("Password Min Numbers", "Password requires " . Config::$extraData['Min Numbers'] . " numbers.");
+				Alert::error("Password Min Numbers", "Password requires " . $passConfigs['Min Numbers'] . " numbers.");
 				
 				return false;
 			}
 		}
 		
 		// Make sure there are a sufficient number of special characters
-		if(Config::$extraData['Min Special'] > 0)
+		if($passConfigs['Min Special'] > 0)
 		{
 			preg_match_all('/[!@#$%^&*() _+=\-\[\]\';,.\/{}|":<>?`~\\\\]/', $password, $matches);
 			
-			if(count($matches[0]) < Config::$extraData['Min Special'])
+			if(count($matches[0]) < $passConfigs['Min Special'])
 			{
-				Alert::error("Password Min Special", "Password requires " . Config::$extraData['Min Special'] . " special characters.");
+				Alert::error("Password Min Special", "Password requires " . $passConfigs['Min Special'] . " special characters.");
 				
 				return false;
 			}

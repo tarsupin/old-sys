@@ -45,7 +45,7 @@ if(Form::submitted(SITE_HANDLE . "-login-form"))
 	if(Validate::pass())
 	{
 		// Retrieve the Site Key
-		$siteConfig = API_Data::get("auth");
+		$apiData = API_Data::get("auth");
 		
 		// Save the site handshake
 		$_SESSION['login']['handshake'] = Security_Hash::random(30, 62);
@@ -58,10 +58,10 @@ if(Form::submitted(SITE_HANDLE . "-login-form"))
 		);
 		
 		// Create a query string with valid packet data
-		$queryStringPacket = API_PacketEncrypt::queryString($customData, $siteConfig['site_key']);
+		$queryStringPacket = API_PacketEncrypt::queryString($customData, $apiData['site_key']);
 		
 		// Redirect to Auth's Login Page (get credentials and return)
-		header("Location: " . $siteConfig['site_url'] . "/login-process?" . $queryStringPacket); exit;
+		header("Location: " . $apiData['site_url'] . "/login-process?" . $queryStringPacket); exit;
 	}
 }
 

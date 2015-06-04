@@ -38,8 +38,8 @@ if(isset($_GET['action']) and $_GET['action'] == "run")
 	
 	foreach($siteList as $site)
 	{
-		$siteConfig = API_Data::get($site['site_handle']);
-		$success = API_Connect::call($siteConfig['site_url'] . "/api/AuthCommand", "system-script", $siteConfig['site_key']);
+		$apiData = API_Data::get($site['site_handle']);
+		$success = API_Connect::call($apiData['site_url'] . "/api/AuthCommand", "system-script", $apiData['site_key']);
 		
 		if($success)
 		{

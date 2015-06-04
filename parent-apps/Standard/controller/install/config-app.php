@@ -17,7 +17,7 @@ if(!isset($_POST['site-salt']) and isset(Config::$siteConfig['database']))
 	$_POST['site-handle'] = SITE_HANDLE;
 	$_POST['site-url'] = SITE_URL;
 	
-	$_POST['site-name'] = Config::$siteConfig['site-name'];
+	$_POST['site-name'] = Config::$siteConfig['Site Name'];
 	$_POST['site-domain'] = FULL_DOMAIN;
 	
 	$_POST['site-database-name'] = Database::$databaseName;

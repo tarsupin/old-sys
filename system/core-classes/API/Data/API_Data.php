@@ -20,7 +20,7 @@ Each site tracked includes:
 -------------------------------
 
 // Get the site data for a connected site
-$siteConfig = API_Data::get($siteHandle, [$scanAuth]);
+$apiData = API_Data::get($siteHandle, [$scanAuth]);
 
 // Get the shared API key with another site
 $siteKey = API_Data::key($siteHandle);
@@ -46,28 +46,28 @@ abstract class API_Data {
 	,	$scanAuth = false	// <bool> If the site is not found, setting this to TRUE will scan AUTH for the site.
 	)						// RETURNS <str:str> the data for the site, or array() on failure.
 	
-	// $siteConfig = API_Data::get($siteHandle, [$scanAuth]);
+	// $apiData = API_Data::get($siteHandle, [$scanAuth]);
 	{
 		// Return the site data if you have the site available
-		$siteConfig = Database::selectOne("SELECT site_url, site_key, site_name, site_clearance FROM network_data WHERE site_handle=? LIMIT 1", array($siteHandle));
+		$apiData = Database::selectOne("SELECT site_url, site_key, site_name, site_clearance FROM network_data WHERE site_handle=? LIMIT 1", array($siteHandle));
 		
-		if($scanAuth == false or $siteConfig)
+		if($scanAuth == false or $apiData)
 		{
-			return $siteConfig;
+			return $apiData;
 		}
 		
 		// If the site wasn't found locally, connect to Auth so that we can retrieve the public information
 		// If we don't have a connection to Auth setup, this step will fail
-		if(!$siteConfig = API_Connect::to("unifaction", "GetSiteInfo", $siteHandle))
+		if(!$apiData = API_Connect::to("unifaction", "GetSiteInfo", $siteHandle))
 		{
 			return array();
 		}
 		
 		// Update your local copy for this site
-		$siteConfig['site_key'] = self::setData($siteHandle, $siteConfig['site_name'], $siteConfig['site_url']);
+		$apiData['site_key'] = self::setData($siteHandle, $apiData['site_name'], $apiData['site_url']);
 		
 		// Return the site data (or false if something went wrong)
-		return $siteConfig;
+		return $apiData;
 	}
 	
 	
@@ -112,12 +112,12 @@ abstract class API_Data {
 		);
 		
 		// Call the API
-		if(!$siteConfig = self::get("unifaction"))
+		if(!$apiData = self::get("unifaction"))
 		{
 			return false;
 		}
 		
-		$response = API_Connect::call($siteConfig['site_url'] . "/api/NetworkSync", $packet, $siteConfig['site_key']);
+		$response = API_Connect::call($apiData['site_url'] . "/api/NetworkSync", $packet, $apiData['site_key']);
 		
 		return $response ? true : false;
 	}
@@ -137,12 +137,12 @@ abstract class API_Data {
 	// $key = API_Data::setData("unifaction", "UniFaction", URL::unifaction_com(), [$siteKey], [$overwrite]);
 	{
 		// If we're not overwriting the data, check if it already exists.
-		$siteConfig = $overwrite ? array() : API_Data::get($siteHandle);
+		$apiData = $overwrite ? array() : API_Data::get($siteHandle);
 		
 		// If data does exist, we'll return the existing key.
-		if($siteConfig !== array() and isset($siteConfig['site_key']))
+		if($apiData !== array() and isset($apiData['site_key']))
 		{
-			return $siteConfig['site_key'];
+			return $apiData['site_key'];
 		}
 		
 		// Generate a new site key if one wasn't provided
@@ -164,7 +164,7 @@ abstract class API_Data {
 	// API_Data::setClearance($siteHandle, $clearanceLevel);
 	{
 		// Check if the site already exists
-		if($siteConfig = API_Data::get($siteHandle))
+		if($apiData = API_Data::get($siteHandle))
 		{
 			return Database::query("UPDATE network_data SET site_clearance=? WHERE site_handle=? LIMIT 1", array($clearanceLevel, $siteHandle));
 		}
@@ -182,13 +182,13 @@ abstract class API_Data {
 	// API_Data::isConnected($siteHandle);
 	{
 		// Make sure the data exists on this site
-		if(!$siteConfig = self::get($siteHandle))
+		if(!$apiData = self::get($siteHandle))
 		{
 			return false;
 		}
 		
 		// Check if the API is already connected
-		$response = API_Connect::call($siteConfig['site_url'] . "/api/API_IsConnected", "", $siteConfig['site_key']);
+		$response = API_Connect::call($apiData['site_url'] . "/api/API_IsConnected", "", $apiData['site_key']);
 		
 		return $response ? true : false;
 	}

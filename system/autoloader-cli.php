@@ -11,12 +11,6 @@ function AutoLoader($class)
 		require($classFile); return true;
 	}
 	
-	// Search Parent Application Classes
-	if($classFile = realpath(PARENT_APP_PATH . "/classes/$preClass/" . $opt . $class . ".php"))
-	{
-		require($classFile); return true;
-	}
-	
 	// Search System Classes
 	if($classFile = realpath(SYS_PATH . "/core-classes/$preClass/" . $class . ".php"))
 	{

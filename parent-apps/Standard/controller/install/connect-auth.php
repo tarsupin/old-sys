@@ -13,7 +13,7 @@ if(!$ownerHandle = Cookie_Server::get("admin-handle", ""))
 $_POST['unifaction-api-key'] = (isset($_POST['unifaction-api-key']) ? Sanitize::text($_POST['unifaction-api-key']) : "");
 
 // If we are connected to UniFaction, we can go to the next page
-if($siteConfig = API_Data::get("auth"))
+if($apiData = API_Data::get("auth"))
 {
 	if($response = API_Connect::to("auth", "API_IsConnected"))
 	{
@@ -34,7 +34,7 @@ if(Form::submitted("install-connect-auth"))
 	// Check if we are now connected to Auth
 	$response = API_Connect::to("auth", "API_IsConnected");
 	
-	// "/api/private", array("run" => "validate-site"), $siteConfig['site_key']);
+	// "/api/private", array("run" => "validate-site"), $apiData['site_key']);
 	
 	if($response == true)
 	{

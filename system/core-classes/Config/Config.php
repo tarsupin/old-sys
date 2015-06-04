@@ -21,7 +21,7 @@ abstract class Config {
 	
 /****** Class Variables ******/
 	public static $siteConfig = array();	// <str:mixed> Stores the site configurations.
-	public static $extraData = array();		// <str:mixed> Stores any miscellaneous configurations.
+	public static $pageConfig = array();	// <str:mixed> Stores configurations for the page being loaded.
 	
 	
 /****** Get Config Values ******/

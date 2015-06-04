@@ -21,7 +21,7 @@ if(Form::submitted(SITE_HANDLE . "-register-form"))
 	if(Validate::pass())
 	{
 		// Retrieve the Site Key
-		$siteConfig = API_Data::get("auth");
+		$apiData = API_Data::get("auth");
 		
 		// Save the site handshake
 		$_SESSION['login']['handshake'] = Security_Hash::random(30, 62);
@@ -36,10 +36,10 @@ if(Form::submitted(SITE_HANDLE . "-register-form"))
 		);
 		
 		// Create a query string with valid packet data
-		$queryStringPacket = API_PacketEncrypt::queryString($customData, $siteConfig['site_key']);
+		$queryStringPacket = API_PacketEncrypt::queryString($customData, $apiData['site_key']);
 		
 		// Redirect to Auth's Registration Page
-		header("Location: " . $siteConfig['site_url'] . "/register-process?" . $queryStringPacket); exit;
+		header("Location: " . $apiData['site_url'] . "/register-process?" . $queryStringPacket); exit;
 	}
 }
 

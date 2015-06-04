@@ -204,11 +204,11 @@ class API {
 			}
 			
 			// Prepare the connection data for this API
-			$siteConfig = API_Data::get($_GET['site']);
+			$apiData = API_Data::get($_GET['site']);
 			
 			$this->apiHandle = $_GET['site'];
-			$this->apiClearance = $siteConfig['site_clearance'];
-			$this->apiKey = $siteConfig['site_key'];
+			$this->apiClearance = $apiData['site_clearance'];
+			$this->apiKey = $apiData['site_key'];
 			$this->apiSalt = $_GET['salt'];
 			$this->apiConf = $_GET['conf'];
 			

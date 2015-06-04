@@ -1,7 +1,7 @@
 <?php
 
 // Get list of paths
-$siteConfigPath = substr(SITE_PATH, strpos(SITE_PATH, "/sites")) . "/config/Site-Config.php";
+$pathToSiteConfig = substr(SITE_PATH, strpos(SITE_PATH, "/sites")) . "/config/Site-Config.php";
 $dbConfigPath = "/config/Database-{ENVIRONMENT}.php";
 $appPath = "";
 
@@ -67,7 +67,7 @@ echo '
 
 echo '
 <h3>Update Your Site Configurations:</h3>
-<p>Edit the Config File: ' . $siteConfigPath . '</p>
+<p>Edit the Config File: ' . $pathToSiteConfig . '</p>
 <p style="margin-top:12px;">You MUST set the following values:</p>
 
 <p>

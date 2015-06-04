@@ -65,7 +65,7 @@ if(Me::$id)
 }
 
 // Retrieve the Site Key
-if(!$siteConfig = API_Data::get("auth"))
+if(!$apiData = API_Data::get("auth"))
 {
 	die("Error: Unable to retrieve proper authentication.");
 }
@@ -85,7 +85,7 @@ if(isset($_GET['action']) and $_GET['action'] == "autolog")
 }
 
 // Create a query string with valid packet data
-$queryStringPacket = API_PacketEncrypt::queryString($customData, $siteConfig['site_key']);
+$queryStringPacket = API_PacketEncrypt::queryString($customData, $apiData['site_key']);
 
 // Redirect to Auth's Automatic Login Page (Get credentials and return)
-header("Location: " . $siteConfig['site_url'] . "/login-auto?" . $queryStringPacket); exit;
+header("Location: " . $apiData['site_url'] . "/login-auto?" . $queryStringPacket); exit;

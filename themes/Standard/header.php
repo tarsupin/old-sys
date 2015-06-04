@@ -6,12 +6,12 @@ echo '
 <html>
 <head>
 	<base href="' . SITE_URL . '">
-	<title>' . (isset(Config::$siteConfig['pageTitle']) ? Config::$siteConfig['pageTitle'] : Config::$siteConfig['Site Name']) . '</title>
+	<title>' . (isset(Config::$pageConfig['pageTitle']) ? Config::$pageConfig['pageTitle'] : Config::$siteConfig['Site Name']) . '</title>
 	
 	<!-- Meta Data -->
 	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 	<link rel="icon" type="image/gif" href="/favicon.gif">
-	<link rel="canonical" href="' . (isset(Config::$siteConfig['canonical']) ? Config::$siteConfig['canonical'] : '/' . $url_relative) . '" />
+	<link rel="canonical" href="' . (isset(Config::$pageConfig['canonical']) ? Config::$pageConfig['canonical'] : '/' . $url_relative) . '" />
 	
 	<!-- Primary Stylesheet -->
 	<link rel="stylesheet" href="/assets/css/style.css" />

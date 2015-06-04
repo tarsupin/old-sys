@@ -148,7 +148,7 @@ abstract class API_Connect {
 	// $response = API_Connect::to($siteHandle, $apiName, [$apiData], [$settings]);
 	{
 		// Get the network data
-		if(!$siteConfig = API_Data::get($siteHandle))
+		if(!$apiData = API_Data::get($siteHandle))
 		{
 			// Attempt to sync the network connection automatically if the connection doesn't exist yet
 			if(!API_Data::syncConnection($siteHandle, true, true))
@@ -158,11 +158,11 @@ abstract class API_Connect {
 			}
 			
 			// Retrieve the updated information about the network connection (should have working key now)
-			$siteConfig = API_Data::get($siteHandle);
+			$apiData = API_Data::get($siteHandle);
 		}
 		
 		// Run the API Call
-		return self::call($siteConfig['site_url'] . "/api/" . $apiName, $apiData, $siteConfig['site_key'], $settings);
+		return self::call($apiData['site_url'] . "/api/" . $apiName, $apiData, $apiData['site_key'], $settings);
 	}
 	
 	

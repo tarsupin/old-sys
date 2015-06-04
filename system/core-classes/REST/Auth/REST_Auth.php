@@ -18,7 +18,7 @@ Each site tracked includes:
 -------------------------------
 
 // Get the site data for a connected site
-$siteConfig = REST_Auth::get($siteHandle, [$scanAuth]);
+$apiData = REST_Auth::get($siteHandle, [$scanAuth]);
 
 // Get the shared API key with another site
 $siteKey = REST_Auth::key($siteHandle);
@@ -110,12 +110,12 @@ abstract class REST_Auth {
 		);
 		
 		// Call the API
-		if(!$siteConfig = self::get("unifaction"))
+		if(!$apiData = self::get("unifaction"))
 		{
 			return false;
 		}
 		
-		$response = API_Connect::call($siteConfig['site_url'] . "/api/NetworkSync", $packet, $siteConfig['site_key']);
+		$response = API_Connect::call($apiData['site_url'] . "/api/NetworkSync", $packet, $apiData['site_key']);
 		
 		return $response ? true : false;
 	}
@@ -135,12 +135,12 @@ abstract class REST_Auth {
 	// $key = REST_Auth::setData("unifaction", "UniFaction", URL::unifaction_com(), [$siteKey], [$overwrite]);
 	{
 		// If we're not overwriting the data, check if it already exists.
-		$siteConfig = $overwrite ? array() : REST_Auth::get($siteHandle);
+		$apiData = $overwrite ? array() : REST_Auth::get($siteHandle);
 		
 		// If data does exist, we'll return the existing key.
-		if($siteConfig !== array() and isset($siteConfig['site_key']))
+		if($apiData !== array() and isset($apiData['site_key']))
 		{
-			return $siteConfig['site_key'];
+			return $apiData['site_key'];
 		}
 		
 		// Generate a new site key if one wasn't provided
@@ -162,7 +162,7 @@ abstract class REST_Auth {
 	// REST_Auth::setClearance($siteHandle, $clearanceLevel);
 	{
 		// Check if the site already exists
-		if($siteConfig = REST_Auth::get($siteHandle))
+		if($apiData = REST_Auth::get($siteHandle))
 		{
 			return Database::query("UPDATE network_data SET site_clearance=? WHERE site_handle=? LIMIT 1", array($clearanceLevel, $siteHandle));
 		}
@@ -180,13 +180,13 @@ abstract class REST_Auth {
 	// REST_Auth::isConnected($siteHandle);
 	{
 		// Make sure the data exists on this site
-		if(!$siteConfig = self::get($siteHandle))
+		if(!$apiData = self::get($siteHandle))
 		{
 			return false;
 		}
 		
 		// Check if the API is already connected
-		$response = API_Connect::call($siteConfig['site_url'] . "/api/API_IsConnected", "", $siteConfig['site_key']);
+		$response = API_Connect::call($apiData['site_url'] . "/api/API_IsConnected", "", $apiData['site_key']);
 		
 		return $response ? true : false;
 	}
