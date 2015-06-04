@@ -1,0 +1,10 @@
+
+# Ignore everything in the /apps directory, except the /example directory
+!/apps
+/apps/*
+!/apps/example
+
+# Ignore the /config directory
+/config
+
+# Additional Changes
