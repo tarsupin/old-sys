@@ -7,4 +7,14 @@
 # Ignore the /config directory
 /config
 
+# Ignore everything in the /themes directory, except the /Standard directory
+!/themes
+/themes/*
+!/themes/Standard
+
+# Ignore everything in the /sites directory, except the /_example.com directory
+!/sites
+/sites/*
+!/sites/_example.com
+
 # Additional Changes
