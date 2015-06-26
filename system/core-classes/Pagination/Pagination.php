@@ -20,9 +20,9 @@ Here's a simple working example to demonstrate it:
 	var_dump($paginate);
 	
 
-----------------------------------------
------- Setting up your pagination ------
-----------------------------------------
+-------------------------------------------------------
+------ Setting Up and Displaying Your Pagination ------
+-------------------------------------------------------
 
 // Prepare Variables
 $resultsPerPage = 20;
@@ -34,6 +34,18 @@ $numberOfResults = (int) Database::selectValue("SELECT COUNT(*) as totalNum FROM
 // Construct the pagination object
 $paginate = new Pagination($numberOfResults, $resultsPerPage, $currentPage);
 
+// Display Pagination
+foreach($paginate->pages as $page)
+{
+	if($paginate->currentPage == $page)
+	{
+		echo '[' . $page . ']';
+	}
+	else
+	{
+		echo '<a href="/this-page?page=' . $page . '">' . $page . '</a>';
+	}
+}
 
 ---------------------------------
 ------ The Pagination Mode ------
@@ -76,22 +88,6 @@ Ranges are not a mode, but rather are relevant to each mode. The higher a range 
 
 For example, a range of 1 may only show the first, last, and current pages. However, a range of 5 will show several more (in addition to those).
 
-
------------------------------------
------- Displaying Pagination ------
------------------------------------
-
-foreach($paginate->pages as $page)
-{
-	if($paginate->currentPage == $page)
-	{
-		echo '[' . $page . ']';
-	}
-	else
-	{
-		echo '<a href="/this-page?page=' . $page . '">' . $page . '</a>';
-	}
-}
 
 -------------------------------
 ------ Methods Available ------
