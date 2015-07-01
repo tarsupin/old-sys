@@ -758,7 +758,7 @@ abstract class Model {
 			}
 			else
 			{
-				$tableData['footer'] .= ' <a href="/' . $url_relative . '?' . Link::queryHold("columns", "sort", "limit") . "&page=" . $page . '">' . $page . '</a>';
+				$tableData['footer'] .= ' <a href="/model/' . $class . '?' . Link::queryHold("columns", "sort", "limit") . "&page=" . $page . '">' . $page . '</a>';
 			}
 		}
 		
@@ -819,9 +819,9 @@ abstract class Model {
 /****** Verify a CRUD form that was submitted ******/
 	public static function verifyForm
 	(
-		$submittedData		// <str:mixed> The data submitted to the form.
+		&$submittedData		// <str:mixed> The data submitted to the form.
 	,	$lookupID = null	// <mixed> Only used for UPDATES: the value of the lookup key (to find a record).
-	)						// RETURNS <void>
+	)						// RETURNS <bool> TRUE on success, FALSE on failure.
 	
 	// static::verifyForm($submittedData, $lookupID = null)
 	{
@@ -848,15 +848,19 @@ abstract class Model {
 			// <--- --->
 			
 			// Validate each Schema Column
-			return static::verifySchema($submittedData);
+			static::verifySchema($submittedData);
+			
+			return Validate::pass();
 		}
+		
+		return false;
 	}
 	
 	
 /****** Verify schema data ******/
 	public static function verifySchema
 	(
-		$submittedData		// <str:mixed> The data submitted to the form.
+		&$submittedData		// <str:mixed> The data submitted to the form.
 	)						// RETURNS <bool> TRUE if all tests passed, FALSE on failure.
 	
 	// static::verifySchema($submittedData)
@@ -864,17 +868,17 @@ abstract class Model {
 		// Prepare Values
 		$columns = static::$schema['columns'];
 		
-		// Loop through each column and ensure proper verification
-		foreach($columns as $columnName => $columnRules)
+		foreach($submittedData as $key => $value)
 		{
-			// Make sure this column is actually used in the submitted data - otherwise, ignore it
-			if(!isset($submittedData[$columnName]))
+			// If the schema does not include this value, remove it from the list
+			if(!isset($columns[$key]))
 			{
+				unset($submittedData[$key]);
 				continue;
 			}
 			
 			// Check if the column is valid or not
-			if(!static::verifySchemaColumn($columnRules, $submittedData[$columnName], $columnName))
+			if(!static::verifySchemaColumn($columns[$key], $submittedData[$key], $key))
 			{
 				return false;
 			}

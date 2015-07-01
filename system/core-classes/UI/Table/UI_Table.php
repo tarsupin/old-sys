@@ -47,10 +47,10 @@ abstract class UI_Table {
 	public static function draw
 	(
 		$tableArray				// <str:array> The table that you'd like to have built.
-	,	$class = "genTable"		// <str> The class name for the table.
+	,	$cssClass = "genTable"	// <str> The class name for the table.
 	)							// RETURNS <str> HTML of the table being constructed.
 	
-	// echo UI_Table::draw($tableArray, $class = "genTable");
+	// echo UI_Table::draw($tableArray, $cssClass = "genTable");
 	{
 		// The array must contain the "data" element to process correctly
 		if(!isset($tableArray['data']))
@@ -60,22 +60,22 @@ abstract class UI_Table {
 		
 		// Display the Table
 		$tableHTML = '
-		<table class="' . $class . '">';
+<table class="' . $cssClass . '">';
 		
 		// Loop through the table headers, if present
 		if(isset($tableArray['head']))
 		{
 			$tableHTML .= '
-			<tr class="' . $class . '-header">';
+	<tr class="' . $cssClass . '-header">';
 			
 			foreach($tableArray['head'] as $key => $data)
 			{
 				$tableHTML .= '
-				<th>' . $data . '</th>';
+		<th>' . $data . '</th>';
 			}
 			
 			$tableHTML .= '
-			</tr>';
+	</tr>';
 		}
 		
 		// Prepare Values
@@ -88,7 +88,7 @@ abstract class UI_Table {
 			$colCount = 0;
 			
 			$tableHTML .= '
-			<tr class="' . $class . '-row-' . ($currentRow % 2 == 0 ? "even" : "odd") . '">';
+	<tr class="' . $cssClass . '-row-' . ($currentRow % 2 == 0 ? "even" : "odd") . '">';
 			
 			foreach($columnData as $key => $data)
 			{
@@ -97,22 +97,22 @@ abstract class UI_Table {
 				// If the key is a string, the field has a specific class.
 				// The left column also has a special class.
 				$tableHTML .= '
-				<td class="' . (is_string($key) ? $key . " " : '') . ($colCount == 1 ? $class . '-left-column' : '') . '">' . $data . '</td>';
+		<td class="' . (is_string($key) ? $key . " " : '') . ($colCount == 1 ? $cssClass . '-left-column' : '') . '">' . $data . '</td>';
 			}
 			
 			$tableHTML .= '
-			</tr>';
+	</tr>';
 		}
 		
 		// If there's a footer, display it
 		if(isset($tableArray['footer']))
 		{
 			$tableHTML .= '
-			<tr><td colspan="' . (isset($tableArray['data'][0]) ? count($tableArray['data'][0]) : 1) . '">' . $tableArray['footer'] . '</td></tr>';
+	<tr><td colspan="' . (isset($tableArray['data'][0]) ? count($tableArray['data'][0]) : 1) . '">' . $tableArray['footer'] . '</td></tr>';
 		}
 		
 		$tableHTML .= '
-		</table>';
+</table>';
 		
 		return $tableHTML;
 	}

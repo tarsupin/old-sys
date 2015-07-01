@@ -40,7 +40,10 @@ abstract class Classes_Generator {
 			return false;
 		}
 		
-		self::generateSearchPage($class);
+		//self::generateSearchPage($class);
+		
+		// Generate the "Create" Form
+		self::generateCreateForm($class);
 	}
 	
 	
@@ -198,6 +201,7 @@ if(method_exists($url[0], 'searchForm'))
 	
 	echo '<a href="/' . $url_relative . '/create">Create New ' . ucfirst($url[0]) . ' Record</a>';
 }
+<?php
 Something;
 		
 		//$pageHTML = self::generatePage($pageHTML, "");
@@ -208,13 +212,233 @@ Something;
 	}
 	
 	
+/****** Generate a creation form for this class ******/
+	public static function generateCreateForm
+	(
+		$class		// <str> The name of the class to generate a create form for.
+	)				// RETURNS <str> HTML for a create form.
+	
+	// $formHTML = Classes_Generator::generateCreateForm($class);
+	{
+
+// Prepare Values
+$schema = $class::$schema;
+$currentRow = 0;
+
+$controller = '
+// Handle a Submission
+if(Form::submitted("' . $class . '-protect-form"))
+{
+	// Make sure the the submission is valid
+	if($result = ' . $class . '::verifyForm($_POST))
+	{
+		// If the submission is valid, process the form
+		if(' . $class . '::create($_POST))
+		{
+			Alert::saveSuccess("Form Created", "The form data was properly submitted!");
+			
+			// Clear the existing POST data
+			unset($_POST);
+		}
+	}
+}
+
+// Display the Alerts
+echo Alert::display();';
+
+// Loop through each column in the schema
+foreach($schema['columns'] as $columnName => $columnRules)
+{
+	// Identify and process tags that were listed for this column
+	if(isset($schema['tags'][$columnName]))
+	{
+		$tags = is_array($schema['tags'][$columnName]) ? $schema['tags'][$columnName] : [$schema['tags'][$columnName]];
+		
+		// Check if there are any tags that the user needs to test
+		foreach($tags as $tag)
+		{
+			switch($tag)
+			{
+				// If the tag cannot be modified, don't show it on the form
+				case Model::CANNOT_MODIFY: continue 3;
+			}
+		}
+	}
+	
+	// If data was submitted by the user, set the column's value to their input
+	if(isset($_POST[$columnName]))
+	{
+		$value = $_POST[$columnName];
+	}
+	
+	// If user input was not submitted, set a default value for the column
+	else
+	{
+		$value = isset($schema['default'][$columnName]) ? $schema['default'][$columnName] : '';
+	}
+	
+	$currentRow++;
+	$columnTitle = ucwords(str_replace("_", " ", $columnName));
+	$table[$currentRow][0] = $columnTitle;
+	
+	// Determine how to display the column 
+	switch($columnRules[0])
+	{
+		### Strings and Text ###
+		case "string":
+		case "text":
+			
+			// Identify all string-related form variables
+			$minLength = isset($columnRules[1]) ? (int) $columnRules[1] : 0;
+			$maxLength = isset($columnRules[2]) ? (int) $columnRules[2] : ($columnRules[0] == "text" ? 0 : 250);
+			
+			// Display a textarea for strings of 101 characters or more
+			if(!$maxLength or $maxLength > 100)
+			{
+				$table[$currentRow][1] = '
+				<textarea id="' . $columnName . '" name="' . $columnName . '"'
+					. ($maxLength ? 'maxlength="' . $maxLength . '"' : '') . '><?php htmlspecialchars($value); ?></textarea>';
+			}
+			
+			// Display a text input for a string of 100 characters or less
+			else
+			{
+				$table[$currentRow][1] = '
+				<input id="' . $columnName . '" type="text"
+					name="' . $columnName . '"
+					value="<?php htmlspecialchars($value); ?>"
+					' . ($maxLength ? 'maxlength="' . $maxLength . '"' : '') . '
+					/>';
+			}
+			
+			break;
+			
+		### Integers ###
+		case "tinyint":			// 256
+		case "smallint":		// 65k
+		case "mediumint":
+		case "int":
+		case "bigint":
+			
+			// Identify all string-related form variables
+			$minRange = isset($columnRules[1]) ? (int) $columnRules[1] : null;
+			$maxRange = isset($columnRules[2]) ? (int) $columnRules[2] : null;
+			$maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
+			
+			// Display the form field for an integer
+			$table[$currentRow][1] = '
+			<input id="' . $columnName . '" type="number"
+				name="' . $columnName . '"
+				value="<?php echo ((int) $value); ?>"'
+				. ($maxLength ? 'maxlength="' . $maxLength . '"' : '')
+				. ($minRange ? 'min="' . $minRange . '"' : '')
+				. ($maxRange ? 'max="' . $maxRange . '"' : '') . '
+				/>';
+			
+			break;
+		
+		### Floats ###
+		case "float":
+		case "double":
+		
+			// Identify all string-related form variables
+			$minRange = isset($columnRules[1]) ? (int) $columnRules[1] : null;
+			$maxRange = isset($columnRules[2]) ? (int) $columnRules[2] : null;
+			$maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
+			
+			// Display the form field for an integer
+			$formHTML .= '
+			<input id="' . $columnName . '" type="text"
+				name="' . $columnName . '"
+				value="<?php echo ((int) $value); ?>"'
+				. ($maxLength ? 'maxlength="' . ($maxLength + ceil($maxLength / 3)) . '"' : '') . '
+				/>';
+			
+			break;
+		
+		### Booleans ###
+		case "bool":
+		case "boolean":
+			
+			// If the boolean types are not declared, set defaults
+			$trueName = isset($columnRules[1]) ? $columnRules[1] : 'True';
+			$falseName = isset($columnRules[2]) ? $columnRules[2] : 'False';
+			
+			// Display the form field for a boolean
+			$table[$currentRow][1] = '
+			<select id="' . $columnName . '" name="' . $columnName . '"><?php echo str_replace(\'value="' . $value . '"\', \'value="' . $value . '" selected\', \'
+				<option value="1">' . htmlspecialchars($trueName) . '</option>
+				<option value="0">' . htmlspecialchars($falseName) . '</option>\'); ?>
+			</select>';
+			
+			break;
+		
+		### Enumerators ###
+		case "enum-number":
+		case "enum-string":
+			
+			// Get the available list of enumerators
+			$enums = array_slice($columnRules, 1);
+			
+			// Display the form field for a boolean
+			$table[$currentRow][1] = '
+			<select id="' . $columnName . '" name="' . $columnName . '"><?php echo str_replace(\'value="' . $value . '"\', \'value="' . $value . '" selected\', \'';
+			
+			// Handle numeric enumerators differently than string enumerators
+			// These will have a numeric counter associated with each value
+			if($columnRules[0] == "enum-number")
+			{
+				$enumCount = count($enums);
+				
+				for( $i = 0; $i < $enumCount; $i++ )
+				{
+					$table[$currentRow][1] .= '
+					<option value="' . $i . '">'  . htmlspecialchars($enums[$i]) . '</option>';
+				}
+			}
+			
+			// String Enumerators
+			else
+			{
+				foreach($enums as $enum)
+				{
+					$table[$currentRow][1] .= '
+					<option value="' . htmlspecialchars($enum) . '">' . htmlspecialchars($enum) . '</option>';
+				}
+			}
+			
+			$table[$currentRow][1] .= '\'); ?>
+			</select>';
+			
+			break;
+	}
+}
+
+// Convert the data into an HTML table
+$table[$currentRow + 1] = ['Submit', '<input type="submit" name="submit" value="Submit" />'];
+
+$view = '?>
+
+<form action="/' . $class . '/create" method="post"><?php echo Form::prepare("' . $class . '-protect-form"); ?>
+' . UI_Table::draw($table) . '
+</form>
+
+<?php';
+
+// Save the page / form to the appropriate file
+$pageHTML = self::generatePage($controller, $view);
+File::write(APP_PATH . "/controller/" . $class . "/create.php", $pageHTML);
+
+	}
+	
+	
 /****** Generate a generic set of controllers, forms, and views for this class ******/
 	public static function generateUpdateForm
 	(
 		$class		// <str> The name of the class to generate an update form for.
 	)				// RETURNS <str> HTML for an update form.
 	
-	// Classes_Generator::generateUpdateForm($class);
+	// $formHTML = Classes_Generator::generateUpdateForm($class);
 	{
 		
 	}
@@ -229,15 +453,16 @@ Something;
 	
 	// $html = self::generatePage();
 	{
-		return <<<PageContent
-<?php
+		return '<?php
+' . $controllerHTML . '
 
 // Display the Header
 require(HEADER_PATH);
 
+' . $viewHTML . '
+
 // Display the Footer
 require(FOOTER_PATH);
-
-PageContent;
+';
 	}
 }

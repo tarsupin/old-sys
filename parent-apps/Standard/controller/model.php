@@ -47,17 +47,18 @@ table tr.even td { background: #f6f6f6; }
 table tr:hover td { background: #f2f2f2; }
 </style>';
 
-// Get the type of form that we're loading - default to "search"
-$formType = isset($url[2]) ? $url[2] : "search";
+// Prepare Values
+$class = Sanitize::variable($url[1]);
+$formType = isset($url[2]) ? $url[2] : "search";	// Type of form we're loading ("create", "update", etc)
 
 switch($formType)
 {
 	// Build a Create or Update Form
 	case "create":
 	case "update":
-		
+	
 		// Make sure the class exists before calling it
-		if(method_exists($url[1], 'buildForm'))
+		if(method_exists($class, 'buildForm'))
 		{
 			// Track any submitted data
 			$submittedData = isset($_POST) ? $_POST : [];
@@ -66,7 +67,7 @@ switch($formType)
 			$lookupID = ($formType == "update" && isset($url[3]) ? $url[3] : null);
 			
 			// Make sure the the submission is valid
-			if(call_user_func([$url[1], 'verifyForm'], $submittedData, $lookupID))
+			if($class::verifyForm($submittedData, $lookupID))
 			{
 				// Remove the "submit" element from the data posted
 				unset($submittedData['submit']);
@@ -74,19 +75,19 @@ switch($formType)
 				// If the submission is valid, process the form
 				if($formType == "create")
 				{
-					if(call_user_func([$url[1], $formType], $submittedData))
+					if($class::$formType($submittedData))
 					{
 						Alert::saveSuccess("Form Created", "The form data was properly submitted!");
 						
-						header("Location: /model/" . $url[1]); exit;
+						header("Location: /model/" . $class); exit;
 					}
 				}
 				
-				else if(call_user_func([$url[1], $formType], $lookupID, $submittedData))
+				else if($class::$formType($lookupID, $submittedData))
 				{
 					Alert::saveSuccess("Form Updated", "The form was properly updated!");
 					
-					header("Location: /model/" . $url[1]); exit;
+					header("Location: /model/" . $class); exit;
 				}
 			}
 			
@@ -96,15 +97,15 @@ switch($formType)
 			// Display appropriate header for this form
 			if($formType == "create")
 			{
-				echo '<h2>Create New `' . ucfirst($url[1]) . '` Record</h2>';
+				echo '<h2>Create New `' . ucfirst($class) . '` Record</h2>';
 			}
 			else
 			{
-				echo '<h2>Update `' . ucfirst($url[1]) . '` Record: ' . $lookupID . '</h2>';
+				echo '<h2>Update `' . ucfirst($class) . '` Record: ' . $lookupID . '</h2>';
 			}
 			
 			// Load the appropriate CRUD form
-			$tableData = call_user_func([$url[1], 'buildForm'], $submittedData, $lookupID);
+			$tableData = $class::buildForm($submittedData, $lookupID);
 			
 			// Begin the Form
 			echo '
@@ -116,7 +117,7 @@ switch($formType)
 			</form>';
 		}
 		
-		echo '<div><a href="/model/' . $url[1] . '">Search Records</a></div>';
+		echo '<div><a href="/model/' . $class . '">Search Records</a></div>';
 		
 		break;
 	
@@ -128,35 +129,35 @@ switch($formType)
 		// Check if deletion is allowed and handle permissions
 		
 		// Make sure the class exists before calling it
-		if(method_exists($url[1], 'readForm'))
+		if(method_exists($class, 'readForm'))
 		{
 			// If the link to delete the record was submitted, run the deletion sequence
 			if(Link::clicked("DeletedRecord"))
 			{
-				if(call_user_func([$url[1], 'delete'], $lookupID))
+				if($class::delete($lookupID))
 				{
 					Alert::saveSuccess("Record Deleted", "The record was successfully deleted.");
 					
-					header("Location: /model/" . $url[1]); exit;
+					header("Location: /model/" . $class); exit;
 				}
 			}
 			
 			// Load the appropriate CRUD form
-			$tableData = call_user_func([$url[1], 'readForm'], $lookupID);
+			$tableData = $class::readForm($lookupID);
 			
 			// If this is the delete page, show an option to delete it
-			$tableData['footer'] = ['' => '', 'Option Next' => '<a href="/model/' . $url[1] . '/view/' . $lookupID . '&' . Link::prepare("DeletedRecord") . '" onclick="return confirm(\'Are you sure you want to delete this record?\')">Delete this Record</a>'];
+			$tableData['footer'] = ['' => '', 'Option Next' => '<a href="/model/' . $class . '/view/' . $lookupID . '&' . Link::prepare("DeletedRecord") . '" onclick="return confirm(\'Are you sure you want to delete this record?\')">Delete this Record</a>'];
 			
 			echo UI_Table::draw($tableData);
 		}
 		
-		echo '<div><a href="/model/' . $url[1] . '">Search Records</a></div>';
+		echo '<div><a href="/model/' . $class . '">Search Records</a></div>';
 		
 		break;
 		
 	// Generation of this model
 	case "generate":
-		// Classes_Generator::generate($url[1]);
+		Classes_Generator::generate($class);
 		break;
 		
 	// Search Table
@@ -167,16 +168,19 @@ switch($formType)
 		echo Alert::display();
 		
 		// Make sure the class exists before calling it
-		if(method_exists($url[1], 'searchForm'))
+		if(method_exists($class, 'searchForm'))
 		{
+			echo '<a href="/model/' . $class . '/create">Create New ' . ucfirst($class) . ' Record</a>';
+			echo ' <a href="/model/' . $class . '/generate" onclick="return confirm(\'This will overwrite files in the /controller/' . $class . '/ directory. Are you sure you want to generate default pages?\')">Generate Default Pages For ' . ucfirst($class) . '</a>';
+			
 			// Display the Model Name
-			echo '<h2>Search the `' . ucfirst($url[1]) . '` Table</h2>';
+			echo '<h2>Search the `' . ucfirst($class) . '` Table</h2>';
 			
 			// Load the Search Form
-			$tableData = call_user_func([$url[1], 'searchForm']);
+			$tableData = $class::searchForm();
 			
 			echo UI_Table::draw($tableData);
 			
-			echo '<a href="/model/' . $url[1] . '/create">Create New ' . ucfirst($url[1]) . ' Record</a>';
+			echo '<a href="/model/' . $class . '/create">Create New ' . ucfirst($class) . ' Record</a>';
 		}
 }
