@@ -1,7 +1,7 @@
 <?php
 
 // Make sure the user is root
-CLI_User::verify(CLI_User::SCIPRT_DIES_ON_FAILURE, "root");
+CLI_User::verify(CLI_User::SCRIPT_DIES_ON_FAILURE, "root");
 
 
 /*******************************
