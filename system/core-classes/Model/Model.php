@@ -1,15 +1,15 @@
 <?php /*
 
-------------------------------------------------
------- Example data for extending a Model ------
-------------------------------------------------
+---------------------------------------------------
+------ Example content for extending a Model ------
+---------------------------------------------------
 
 abstract class Example extends Model {
 	
 	// Class Variables
 	protected static $table = "example";	// <str> The name of the table to access.
-	protected static $lookupKey = "id";		// <str> The column acting as the table's lookup key; usually primary key.
-	protected static $tokenExpire = 45;		// <int> Token expiration in seconds - deterrent of replay attacks.
+	protected static $lookupKey = "id";		// <str> Table's lookup key (column); usually primary key.
+	protected static $tokenExpire = 45;		// <int> Token expiration - deterrent of replay attacks.
 	
 	// Set the API requests that are allowed with this model
 	protected static $allowRequests = [				// <int:str> The list of requests to allow
@@ -38,17 +38,26 @@ abstract class Example extends Model {
 		],
 		
 		'tags' => [
-			'id'		=> [Schema::SET_ONCE]
-		]
+			'id'		=> [self::AUTO_INCREMENT, self::CANNOT_MODIFY],
+			'my_enum'	=> self::HIDE
+		],
+		
+		'index' => [
+			['primary', 'id'],
+			['unique', 'category, title']
+		],
+		
+		'special' => []
 	];
 }
 
 ---------------------------------
 ------ Schemas for a Model ------
 ---------------------------------
-Each object has a schema to define it's columns and behaviors. This will be used in forms, verification, etc.
+Each class has a schema to define it's columns and behaviors. This will be used in forms, verification, etc.
 
-Each column defined can have a 'type' setting, which includes the following:
+Each column has settings, whose attributes are based on the first value (the type of the column).
+Columns can be defined with the following format:
 	
 	['string', $minimumLength, $maximumLength, $sanitizeMethod, $extraChars]
 	
@@ -75,15 +84,14 @@ Each column defined can have a 'type' setting, which includes the following:
 ---------------------------------------
 /model/{MyClass}/search			// Show a table of records for the model
 /model/{MyClass}/create			// Form to create a new record
-/model/{MyClass}/read			// Read the contents of a single record
-/model/{MyClass}/update/1		// Update the contents of a record where the primary column == 1
-/model/{MyClass}/delete/1		// Delete a record where the primary column == 1
+/model/{MyClass}/view/1			// Read the contents of a single record where the lookup column == 1
+/model/{MyClass}/update/1		// Update the contents of a record where the lookup column == 1
 
-GET /api/{MyClass}					// A "GET" REST request
-POST /api/{MyClass}					// A "POST" REST request
-PUT /api/{MyClass}/1				// A "PUT" REST request where the primary column == 1
-PATCH /api/{MyClass}/1				// A "PATCH" REST request where the primary column == 1
-DELETE /api/{MyClass}/1				// A "DELETE" REST request where the primary column == 1
+GET /api/{MyClass}				// A "GET" REST request
+POST /api/{MyClass}				// A "POST" REST request
+PUT /api/{MyClass}/1			// A "PUT" REST request where the lookup column == 1
+PATCH /api/{MyClass}/1			// A "PATCH" REST request where the lookup column == 1
+DELETE /api/{MyClass}/1			// A "DELETE" REST request where the lookup column == 1
 
 ------------------------------------
 ------ Process a REST request ------
@@ -117,8 +125,7 @@ REST requests are simple with models - just run the ::processRequest() on a vali
 	// Pagination Options
 	$searchArgs['page'] = 2;		// Page to return - uses "limit" as records per page
 	$searchArgs['offset'] = 0;		// The offset to start at
-	$searchArgs['orderby'] = 'user_group,username';
-	$searchArgs['order'] = 'ASC';
+	$searchArgs['sort'] = 'user_group,-username';
 	$searchArgs['limit'] = 5;
 	
 	// Retrieve the Search Results
@@ -220,8 +227,8 @@ Model::get($lookupID, [$columns]);
 Model::search($searchArgs);
 
 Model::create($insertData);
-Model::replace($lookupID, $replaceData);
 Model::update($lookupID, $updateData);
+Model::upsert($lookupID, $upsertData);	// Will insert a new row, or update existing one that it overlaps
 Model::delete($lookupID);
 
 */
@@ -240,14 +247,16 @@ abstract class Model {
 	const SECURE = 30;				// <int> Requires authentication + integrity + replay prevention.
 	const ENCRYPTED_SECURE = 40;	// <int> Requires authentication + integrity + replay prevention + encryption.
 	
-	// Schema Constants
-	const CANNOT_MODIFY = 1;		// <int> Means this value cannot be modified.
+	// Schema Tag Constants
+	const CANNOT_MODIFY = 1;		// <int> This value cannot be modified.
+	const AUTO_INCREMENT = 2;		// <int> The column is an auto-incrementing primary key.
+	const HIDE = 3;					// <int> The column is hidden from generic forms.
 	
 	
 /****** Class Variables ******/
 	protected static $table = "";			// <str> The name of the table to access.
-	protected static $lookupKey = "";		// <str> The column acting as the table's lookup key; usually primary key.
-	protected static $tokenExpire = 45;		// <int> Token expiration in seconds - deterrent of replay attacks.
+	protected static $lookupKey = "";		// <str> Table's lookup key (column); usually primary key.
+	protected static $tokenExpire = 45;		// <int> Token expiration - deterrent of replay attacks.
 	
 	// Set the API requests that are allowed with this model
 	protected static $allowRequests = [				// <int:str> The list of requests to allow
@@ -264,10 +273,11 @@ abstract class Model {
 	public static function get
 	(
 		$lookupID		// <T> The ID of the row to retrieve (based on table's $lookupKey)
+	,	$many = false	// <bool> TRUE if this get will return multiple rows (for many children).
 	,	$columns = "*"	// <mixed> The columns (array) or single column (string) to retrieve. Default is all.
 	)					// RETURNS <str:mixed> The data from the row.
 	
-	// $fetchRow = static::get($lookupID, [$columns]);
+	// $fetchRow = static::get($lookupID, $many = false, $columns = "*");
 	{
 		// If we're retrieving multiple columns, we need to delimit them
 		if(is_array($columns))
@@ -275,8 +285,13 @@ abstract class Model {
 			$columns = implode(", ", $columns);
 		}
 		
-		// We're only retrieving one column
-		return Database::selectOne("SELECT " . $columns . " FROM `" . static::$table . "` WHERE `" . static::$lookupKey . "` = ? LIMIT 1", array($lookupID));
+		// If we're only retrieving one column, which is the standard
+		if(!$many)
+		{
+			return Database::selectOne("SELECT " . $columns . " FROM `" . static::$table . "` WHERE `" . static::$lookupKey . "` = ? LIMIT 1", array($lookupID));
+		}
+		
+		return Database::selectMultiple("SELECT " . $columns . " FROM `" . static::$table . "` WHERE `" . static::$lookupKey . "` = ?", array($lookupID));
 	}
 	
 	
@@ -340,11 +355,12 @@ abstract class Model {
 	public static function read
 	(
 		$lookupID		// <T> The ID of the row to retrieve (based on table's $lookupKey)
+	,	$many = false	// <bool> TRUE if this get will return multiple rows (for many children).
 	)					// RETURNS <str:mixed> The data from the row.
 	
-	// $fetchRow = static::read($lookupID);
+	// $fetchRow = static::read($lookupID, $many = false);
 	{
-		return static::get($lookupID);
+		return static::get($lookupID, $many);
 	}
 	
 	
@@ -357,6 +373,8 @@ abstract class Model {
 	
 	// static::update($lookupID, $updateData);
 	{
+		if(!$lookupID) { return false; }
+		
 		// Prepare Values
 		$setSQL = "";
 		$fields = [];
@@ -371,7 +389,7 @@ abstract class Model {
 		// Add the final index
 		$fields[] = $lookupID;
 		
-		return Database::query("UPDATE `" . static::$table . "` SET " . $setSQL . " WHERE `" . static::$lookupKey . "`=?", $fields);
+		return Database::query("UPDATE `" . static::$table . "` SET " . $setSQL . " WHERE `" . static::$lookupKey . "`=? LIMIT 1", $fields);
 	}
 	
 	
@@ -616,8 +634,10 @@ abstract class Model {
 	// $tableHTML = static::searchForm($searchArgs)
 	{
 		// Prepare Values
-		global $url, $url_relative;
+		$class = get_called_class();
 		$schema = static::$schema;
+		
+		$columnSorted = isset($_GET['sort']) ? Sanitize::variable($_GET['sort']) : null;
 		
 		// If no search arguments are provided, default to using $_GET
 		if($searchArgs == ['_GET']) { $searchArgs = $_GET; }
@@ -626,15 +646,11 @@ abstract class Model {
 		$fetchRows = static::search($searchArgs, $rowCount);
 		
 		// Begin the Table
-		$tableHTML = '
-		<table border="1" cellpadding="4" cellspacing="0">
-			<tr>
-				<td>Options</td>';
+		$tableData = ['head' => ["~opts~" => "Options"], 'data' => []];
 		
 		// Loop through each column in the schema
 		foreach($schema['columns'] as $columnName => $columnRules)
 		{
-			/*
 			// Identify and process tags that were listed for this column
 			if(isset($schema['tags'][$columnName]))
 			{
@@ -645,22 +661,30 @@ abstract class Model {
 				{
 					switch($tag)
 					{
-						// If the tag cannot be modified, don't show it on the form
-						//case Model::CANNOT_MODIFY: continue 3;
+						// If the tag is hidden, don't show it
+						case self::HIDE:
+							continue 3;
 					}
 				}
 			}
-			*/
 			
-			// Display the Column if it was located in the search
-			if(isset($fetchRows[0][$columnName]))
+			// If we're currently sorting by this column, provide special behavior to show this
+			if($columnSorted == $columnName)
 			{
-				$tableHTML .= '<td>' . ucwords(str_replace("_", " ", $columnName)) . '</td>';
+				if($_GET['sort'][0] == '-')
+				{
+					$tableData['head'][$columnName] = '<a href="/model/' . $class . '?' . Link::queryHold("columns", "limit", "page") . "&sort=" . $columnName . '">' . ucwords(str_replace("_", " ", $columnName)) . ' ^</a>';
+				}
+				else
+				{
+					$tableData['head'][$columnName] = '<a href="/model/' . $class . '?' . Link::queryHold("columns", "limit", "page") . "&sort=-" . $columnName . '">' . ucwords(str_replace("_", " ", $columnName)) . ' v</a>';
+				}
+			}
+			else
+			{
+				$tableData['head'][$columnName] = '<a href="/model/' . $class . '?' . Link::queryHold("columns", "limit", "page") . "&sort=" . $columnName . '">' . ucwords(str_replace("_", " ", $columnName)) . '</a>';
 			}
 		}
-		
-		$tableHTML .= '
-			</tr>';
 		
 		// Loop through each row
 		$totalRows = count($fetchRows);
@@ -670,27 +694,50 @@ abstract class Model {
 			$row = $fetchRows[$i];
 			$lookupID = $row[static::$lookupKey];
 			
-			$tableHTML .= '
-			<tr>
-				<td><a href="/' . $url_relative . '/create">C</a> <a href="/' . $url_relative . '/read?lookupID=' . $lookupID . '">R</a> <a href="/' . $url_relative . '/update?lookupID=' . $lookupID . '">U</a> <a href="/' . $url_relative . '/delete?lookupID=' . $lookupID . '">D</a></td>';
+			$tableData['data'][$i][] = '<a href="/model/' . $class . '/view/' . $lookupID . '">V</a> <a href="/model/' . $class . '/update/' . $lookupID . '">U</a>';
 			
 			// Loop through each schema column, and use that to place values appropriately
-			foreach($schema['columns'] as $columnName => $columnData)
+			foreach($tableData['head'] as $columnName => $_ignore)
 			{
-				// Retrieve the appropriate value from the row and display it
+				// Make sure the value exists in the schema
+				if(!isset($schema['columns'][$columnName])) { continue; }
+				
+				// Add a Standard Row to the table
 				if(isset($row[$columnName]))
 				{
-					$tableHTML .= '
-					<td>' . $row[$columnName] . '</td>';
+					$tableData['data'][$i][] = $row[$columnName];
+				}
+				
+				// If there is no row entry, it must be a child table of some sort
+				else
+				{
+					// Prepare Values
+					$inputHTML = "";
+					$columnRules = $schema['columns'][$columnName];
+					
+					/*
+						In order to handle related tables, the class needs to provide the following method:
+							::getFormatted($lookupID)
+						
+						This will allow the table to return proper human-readable data entry.
+					*/
+					
+					// One-to-One relationships
+					if($columnRules[0] == 'has-one')
+					{
+						$inputHTML = "ONE";
+					}
+					
+					// One-to-Many relationships
+					else if($columnRules[0] == 'has-many')
+					{
+						$inputHTML = "MANY";
+					}
+					
+					$tableData['data'][$i][] = $inputHTML;
 				}
 			}
-			
-			$tableHTML .= '
-			</tr>';
 		}
-		
-		$tableHTML .= '
-		</table>';
 		
 		// Prepare Pagination
 		$resultsPerPage = isset($searchArgs['limit']) ? (int) $searchArgs['limit'] : 25;
@@ -700,25 +747,25 @@ abstract class Model {
 		$paginate = new Pagination($rowCount, $resultsPerPage, $currentPage);
 		
 		// Display the Pagination
-		$tableHTML .= '
+		$tableData['footer'] = '
 		<div>Pages:';
 		
 		foreach($paginate->pages as $page)
 		{
 			if($paginate->currentPage == $page)
 			{
-				$tableHTML .= ' [' . $page . ']';
+				$tableData['footer'] .= ' [' . $page . ']';
 			}
 			else
 			{
-				$tableHTML .= ' <a href="/' . $url_relative . '?' . Link::queryHold("columns", "sort", "limit") . "&page=" . $page . '">' . $page . '</a>';
+				$tableData['footer'] .= ' <a href="/' . $url_relative . '?' . Link::queryHold("columns", "sort", "limit") . "&page=" . $page . '">' . $page . '</a>';
 			}
 		}
 		
-		$tableHTML .= '
+		$tableData['footer'] .= '
 		</div>';
 		
-		return $tableHTML;
+		return $tableData;
 	}
 	
 	
@@ -970,7 +1017,7 @@ abstract class Model {
 	}
 	
 	
-/****** Generate a creation form for this schema ******/
+/****** Generate a CREATE or UPDATE form for this schema ******/
 	public static function buildForm
 	(
 		$submittedData		// <str:mixed> The data submitted to the form.
@@ -981,13 +1028,10 @@ abstract class Model {
 	{
 		// Prepare Values
 		$schema = static::$schema;
+		$currentRow = 0;
 		
 		// If a lookup ID was provided, retrieve database record and acknowledge as PATCH
 		$resourceData = $lookupID ? static::get($lookupID) : [];
-		
-		// Begin the Form
-		$formHTML = '
-		<form action="' . $_SERVER['REQUEST_URI'] . '" method="POST">';
 		
 		// Loop through each column in the schema
 		foreach($schema['columns'] as $columnName => $columnRules)
@@ -1030,9 +1074,9 @@ abstract class Model {
 				}
 			}
 			
-			$formHTML .= '
-			<div>
-				<label for="' . $columnName . '">' . ucwords(str_replace("_", " ", $columnName)) . '</label>';
+			$currentRow++;
+			$columnTitle = ucwords(str_replace("_", " ", $columnName));
+			$table[$currentRow][0] = $columnTitle;
 			
 			// Determine how to display the column 
 			switch($columnRules[0])
@@ -1044,13 +1088,11 @@ abstract class Model {
 					// Identify all string-related form variables
 					$minLength = isset($columnRules[1]) ? (int) $columnRules[1] : 0;
 					$maxLength = isset($columnRules[2]) ? (int) $columnRules[2] : ($columnRules[0] == "text" ? 0 : 250);
-					$sanitizeMethod = isset($columnRules[3]) ? $columnRules[3] : '';
-					$extraChars = isset($columnRules[4]) ? (int) $columnRules[4] : '';
 					
 					// Display a textarea for strings of 101 characters or more
 					if(!$maxLength or $maxLength > 100)
 					{
-						$formHTML .= '
+						$table[$currentRow][1] = '
 						<textarea id="' . $columnName . '" name="' . $columnName . '"'
 							. ($maxLength ? 'maxlength="' . $maxLength . '"' : '') . '>' . htmlspecialchars($value) . '</textarea>';
 					}
@@ -1058,7 +1100,7 @@ abstract class Model {
 					// Display a text input for a string of 100 characters or less
 					else
 					{
-						$formHTML .= '
+						$table[$currentRow][1] = '
 						<input id="' . $columnName . '" type="text"
 							name="' . $columnName . '"
 							value="' . htmlspecialchars($value) . '"'
@@ -1081,7 +1123,7 @@ abstract class Model {
 					$maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
 					
 					// Display the form field for an integer
-					$formHTML .= '
+					$table[$currentRow][1] = '
 					<input id="' . $columnName . '" type="number"
 						name="' . $columnName . '"
 						value="' . ((int) $value) . '"'
@@ -1120,11 +1162,12 @@ abstract class Model {
 					$falseName = isset($columnRules[2]) ? $columnRules[2] : 'False';
 					
 					// Display the form field for a boolean
-					$formHTML .= str_replace('value="' . $value . '"', 'value="' . $value . '" selected', '
+					$table[$currentRow][1] = str_replace('value="' . $value . '"', 'value="' . $value . '" selected', '
 					<select id="' . $columnName . '" name="' . $columnName . '">
 						<option value="1">' . htmlspecialchars($trueName) . '</option>
 						<option value="0">' . htmlspecialchars($falseName) . '</option>
 					</select>');
+					
 					break;
 				
 				### Enumerators ###
@@ -1135,7 +1178,7 @@ abstract class Model {
 					$enums = array_slice($columnRules, 1);
 					
 					// Display the form field for a boolean
-					$formHTML .= '
+					$table[$currentRow][1] = '
 					<select id="' . $columnName . '" name="' . $columnName . '">';
 					
 					// Handle numeric enumerators differently than string enumerators
@@ -1146,7 +1189,7 @@ abstract class Model {
 						
 						for( $i = 0; $i < $enumCount; $i++ )
 						{
-							$formHTML .= '
+							$table[$currentRow][1] .= '
 							<option value="' . $i . '"' . ($value == $i ? ' selected' : '') . '>'  . htmlspecialchars($enums[$i]) . '</option>';
 						}
 					}
@@ -1156,30 +1199,22 @@ abstract class Model {
 					{
 						foreach($enums as $enum)
 						{
-							$formHTML .= '
+							$table[$currentRow][1] .= '
 							<option value="' . htmlspecialchars($enum) . '"' . ($value == $enum ? ' selected' : '') . '>' . htmlspecialchars($enum) . '</option>';
 						}
 					}
 					
-					$formHTML .= '
+					$table[$currentRow][1] .= '
 					</select>';
 					
 					break;
 			}
-			
-			$formHTML .= '
-			</div>';
 		}
 		
 		// End the Form
-		$formHTML .= '
-		<div>
-			<label for="submit">Submit</label>
-			<input type="submit" name="submit" value="Submit" />
-		</div>
-		</form>';
+		$table[$currentRow + 1] = ['Submit', '<input type="submit" name="submit" value="Submit" />'];
 		
-		return $formHTML;
+		return $table;
 	}
 	
 	

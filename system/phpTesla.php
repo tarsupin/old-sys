@@ -346,7 +346,7 @@ switch($url[0])
 {
 	case "api":
 	case "script":
-		require(SYS_PATH . "/controller/" . $url[0] . ".php"); exit;
+		require(PARENT_APP_PATH . "/controller/" . $url[0] . ".php"); exit;
 	
 	case "login":
 	case "ajax":

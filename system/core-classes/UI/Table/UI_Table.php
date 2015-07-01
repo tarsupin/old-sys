@@ -30,20 +30,13 @@ Each data field can also have a key, which assigns a CSS class to it.
 The second format allows for additional options:
 
 	$table = [
-		'link_hold'		=> ["columns", "sort", "limit", "page"]
 		'head'			=> ["Header 1", "Header 2", "Header 3", "..."],
 		'data'			=> [
 			['data1a', 'data2a', 'data3a', '...'],
 			['data1b', 'data2b', 'data3b', '...'],
 			['data1c', 'data2c', 'data3c', '...']
 		],
-		'pagination'	=> ['pages'
 	];
-
-
--------------------------------
------- Methods Available ------
--------------------------------
 
 */
 
@@ -51,13 +44,13 @@ abstract class UI_Table {
 	
 	
 /****** Convert an array to a table ******/
-	public static function buildTableFromArray
+	public static function draw
 	(
 		$tableArray				// <str:array> The table that you'd like to have built.
 	,	$class = "genTable"		// <str> The class name for the table.
 	)							// RETURNS <str> HTML of the table being constructed.
 	
-	// echo UI_Table::buildTableFromArray($tableArray, $class = "genTable");
+	// echo UI_Table::draw($tableArray, $class = "genTable");
 	{
 		// The array must contain the "data" element to process correctly
 		if(!isset($tableArray['data']))
@@ -78,7 +71,7 @@ abstract class UI_Table {
 			foreach($tableArray['head'] as $key => $data)
 			{
 				$tableHTML .= '
-				<td>' . $data . '</td>';
+				<th>' . $data . '</th>';
 			}
 			
 			$tableHTML .= '
@@ -87,7 +80,6 @@ abstract class UI_Table {
 		
 		// Prepare Values
 		$currentRow = 0;
-		$maxColumns = count($tableArray['data'][0]);
 		
 		// Loop through each row in the table to output the content
 		foreach($tableArray['data'] as $row => $columnData)
@@ -110,6 +102,13 @@ abstract class UI_Table {
 			
 			$tableHTML .= '
 			</tr>';
+		}
+		
+		// If there's a footer, display it
+		if(isset($tableArray['footer']))
+		{
+			$tableHTML .= '
+			<tr><td colspan="' . (isset($tableArray['data'][0]) ? count($tableArray['data'][0]) : 1) . '">' . $tableArray['footer'] . '</td></tr>';
 		}
 		
 		$tableHTML .= '

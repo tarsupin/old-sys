@@ -77,7 +77,7 @@ abstract class Link {
 		$salt = Security_Hash::random(mt_rand(6, 9), 62);
 		
 		// Test the identifier that makes forms unique to each user
-		$siteSalt = SITE_SALT;
+		$siteSalt = SERVER_SALT;
 		
 		// Add User Agent
 		$siteSalt .= (isset($_SESSION['user_agent']) ? md5($_SESSION['user_agent']) : "");
@@ -101,8 +101,10 @@ abstract class Link {
 	
 	
 /****** Validate a Link Click using Special Protection ******/
-	public static function clicked (
-	)					// RETURNS <str> a string identifier for which click was made, "" on failure.
+	public static function clicked
+	(
+		$origClickValue = "1"	// <str> The required click value to test for.
+	)							// RETURNS <str> a string identifier for which click was made, "" on failure.
 	
 	// if($val = Link::clicked() && $val == "tip") { echo "The link has been clicked successfully!"; }
 	{
@@ -110,13 +112,13 @@ abstract class Link {
 		if(isset($_GET['lslt']) && isset($_GET['lhsh']) && isset($_GET['lcv']))
 		{
 			/// Decode the prepared click value
-			if(!$clickVal = base64_decode($_GET['lcv']))
+			if(!$clickVal = base64_decode($_GET['lcv']) or $clickVal != $origClickValue)
 			{
 				return "";
 			}
 			
 			// Prepare identifier that will make forms unique to each user
-			$siteSalt = SITE_SALT;
+			$siteSalt = SERVER_SALT;
 			
 			// Add User Agent
 			$siteSalt .= (isset($_SESSION['user_agent']) ? md5($_SESSION['user_agent']) : "");
@@ -177,7 +179,7 @@ abstract class Link {
 		$salt = Security_Hash::random(10, 62);
 		
 		// Test the identifier that makes forms unique to each user
-		$siteSalt = SITE_SALT;
+		$siteSalt = SERVER_SALT;
 		
 		// Add User Agent
 		$siteSalt .= (isset($_SESSION['user_agent']) ? md5($_SESSION['user_agent']) : "");
@@ -220,7 +222,7 @@ abstract class Link {
 		}
 		
 		// Prepare identifier that will make forms unique to each user
-		$siteSalt = SITE_SALT;
+		$siteSalt = SERVER_SALT;
 		
 		// Add User Agent
 		$siteSalt .= (isset($_SESSION['user_agent']) ? md5($_SESSION['user_agent']) : "");

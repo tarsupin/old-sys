@@ -1,17 +1,17 @@
 <?php
 
-class UI_Table_config {
+class Classes_Generator_config {
 	
 	
 /****** Class Variables ******/
 	public $classType = "standard";
-	public $className = "UI_Table";
-	public $title = "User Interface Tables";
+	public $className = "Classes_Generator";
+	public $title = "Class Generator Tool";
 	public $version = 1.0;
 	public $author = "Brint Paris";
 	public $license = "UniFaction License";
 	public $website = "http://unifaction.com";
-	public $description = "Provides the ability to generate a generic UI for tables.";
+	public $description = "Provides a tool to generate controllers and views for a class.";
 	
 	public $data = array();
 	

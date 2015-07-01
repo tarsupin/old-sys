@@ -12,6 +12,7 @@
 $api = Sanitize::variable($url[1]);
 
 // Make sure the runAPI method exists.
-if(!method_exists($api, "processRequest")) { exit; }
+if(!method_exists($api, "runAPI")) { exit; }
 
-echo $api::processRequest();
+// Output the API's response
+new $api();

@@ -303,7 +303,7 @@ abstract class Alert {
 			
 			unset($_SESSION[SITE_HANDLE]['alert']);
 		}
-		var_dump(self::$successList);
+		
 		// If there are no alerts, return empty
 		if(self::$errorList === array() && self::$successList === array() && self::$infoList === array() && self::$warningList === array())
 		{
