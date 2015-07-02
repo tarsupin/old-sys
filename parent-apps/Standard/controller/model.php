@@ -66,13 +66,9 @@ switch($formType)
 			// Check if there is a record ID associated with an update
 			$lookupID = ($formType == "update" && isset($url[3]) ? $url[3] : null);
 			
-			// Process the Form
-			$class::processForm($submittedData, $lookupID = null);
-			
 			// Make sure the the submission is valid
 			if($class::verifyForm($submittedData, $lookupID))
 			{
-				/*
 				// Remove the "submit" element from the data posted
 				unset($submittedData['submit']);
 				
@@ -93,7 +89,6 @@ switch($formType)
 					
 					header("Location: /model/" . $class); exit;
 				}
-				*/
 			}
 			
 			// Display the Alerts
