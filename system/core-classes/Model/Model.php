@@ -9,7 +9,6 @@ abstract class Example extends Model {
 	// Class Variables
 	protected static $table = "example";	// <str> The name of the table to access.
 	protected static $lookupKey = "id";		// <str> Table's lookup key (column); usually primary key.
-	protected static $tokenExpire = 45;		// <int> Token expiration - deterrent of replay attacks.
 	
 	// Set the API requests that are allowed with this model
 	protected static $allowRequests = [				// <int:str> The list of requests to allow
@@ -345,7 +344,22 @@ abstract class Model {
 	
 	// static::create($insertData);
 	{
-		list($columns, $fields) = [array_keys($insertData), array_values($insertData)];
+		// Prepare Values
+		$columns = [];
+		$fields = [];
+		
+		// Loop through the submitted data and ensure its integrity
+		foreach($insertData as $column => $field)
+		{
+			// Make sure the column exists in the schema
+			if(!isset(static::$schema['columns'][$column]))
+			{
+				continue;
+			}
+			
+			$columns[] = $column;
+			$fields[] = $field;
+		}
 		
 		return Database::query("INSERT INTO `" . static::$table . "` (" . implode(", ", $columns) . ") VALUES (?" . str_repeat(", ?", count($fields) - 1) . ")", $fields);
 	}
@@ -382,6 +396,12 @@ abstract class Model {
 		// Prepare the SQL string for updating each column
 		foreach($updateData as $column => $field)
 		{
+			// Make sure the column exists in the schema
+			if(!isset(static::$schema['columns'][$column]))
+			{
+				continue;
+			}
+			
 			$setSQL .= (empty($setSQL) ? "" : ", ") . "`" . $column . "`=?";
 			$fields[] = $field;
 		}
@@ -816,10 +836,43 @@ abstract class Model {
 	}
 	
 	
+/****** Process a CRUD form that was submitted ******/
+	public static function processForm
+	(
+		$submittedData		// <str:mixed> The data submitted to the form.
+	,	$lookupID = null	// <mixed> Only used for UPDATES: the value of the lookup key (to find a record).
+	)						// RETURNS <bool> TRUE on success, FALSE on failure.
+	
+	// static::processForm($submittedData, $lookupID = null)
+	{
+		// If there is submitted data passed to the form
+		if($submittedData)
+		{
+			// Loop through the schema's relationships and see if they were posted
+			foreach(static::$schema['relationships'] as $relationName => $relatedClass)
+			{
+				// If a relationship was found, we need to verify those values
+				if(isset($submittedData[$relationName]))
+				{
+					//$relatedClass::verifySchema($submittedData);
+					var_dump($submittedData[$relationName]);
+				}
+			}
+			
+			// Validate each Schema Column
+			static::verifySchema($submittedData);
+			
+			return Validate::pass();
+		}
+		
+		return false;
+	}
+	
+	
 /****** Verify a CRUD form that was submitted ******/
 	public static function verifyForm
 	(
-		&$submittedData		// <str:mixed> The data submitted to the form.
+		$submittedData		// <str:mixed> The data submitted to the form.
 	,	$lookupID = null	// <mixed> Only used for UPDATES: the value of the lookup key (to find a record).
 	)						// RETURNS <bool> TRUE on success, FALSE on failure.
 	
@@ -860,7 +913,7 @@ abstract class Model {
 /****** Verify schema data ******/
 	public static function verifySchema
 	(
-		&$submittedData		// <str:mixed> The data submitted to the form.
+		$submittedData		// <str:mixed> The data submitted to the form.
 	)						// RETURNS <bool> TRUE if all tests passed, FALSE on failure.
 	
 	// static::verifySchema($submittedData)
@@ -870,10 +923,9 @@ abstract class Model {
 		
 		foreach($submittedData as $key => $value)
 		{
-			// If the schema does not include this value, remove it from the list
+			// If the schema does not include this value, ignore it
 			if(!isset($columns[$key]))
 			{
-				unset($submittedData[$key]);
 				continue;
 			}
 			
@@ -1079,146 +1131,245 @@ abstract class Model {
 			}
 			
 			$currentRow++;
-			$columnTitle = ucwords(str_replace("_", " ", $columnName));
-			$table[$currentRow][0] = $columnTitle;
-			
-			// Determine how to display the column 
-			switch($columnRules[0])
+			$table[$currentRow][0] = ucwords(str_replace("_", " ", $columnName));
+			$table[$currentRow][1] = static::buildInput($columnName, $columnRules, $value);
+		}
+		
+		// Loop through each "relationship" in the schema, and load data accordingly
+		if(isset($schema['relationships']))
+		{
+			foreach($schema['relationships'] as $relationName => $relatedClass)
 			{
-				### Strings and Text ###
-				case "string":
-				case "text":
-					
-					// Identify all string-related form variables
-					$minLength = isset($columnRules[1]) ? (int) $columnRules[1] : 0;
-					$maxLength = isset($columnRules[2]) ? (int) $columnRules[2] : ($columnRules[0] == "text" ? 0 : 250);
-					
-					// Display a textarea for strings of 101 characters or more
-					if(!$maxLength or $maxLength > 100)
+				// Get details about the related class
+				$relatedSchema = $relatedClass::$schema;
+				$relatedClassType = get_parent_class($relatedClass);
+				
+				$inputRules = [];
+				
+				// Provide the special handling for child models
+				if($relatedClassType == "Model_Child")
+				{
+					// Loop through each column in the related schema
+					foreach($relatedSchema['columns'] as $columnName => $columnRules)
 					{
-						$table[$currentRow][1] = '
-						<textarea id="' . $columnName . '" name="' . $columnName . '"'
-							. ($maxLength ? 'maxlength="' . $maxLength . '"' : '') . '>' . htmlspecialchars($value) . '</textarea>';
-					}
-					
-					// Display a text input for a string of 100 characters or less
-					else
-					{
-						$table[$currentRow][1] = '
-						<input id="' . $columnName . '" type="text"
-							name="' . $columnName . '"
-							value="' . htmlspecialchars($value) . '"'
-							. ($maxLength ? 'maxlength="' . $maxLength . '"' : '') . '
-							/>';
-					}
-					
-					break;
-					
-				### Integers ###
-				case "tinyint":			// 256
-				case "smallint":		// 65k
-				case "mediumint":
-				case "int":
-				case "bigint":
-					
-					// Identify all string-related form variables
-					$minRange = isset($columnRules[1]) ? (int) $columnRules[1] : null;
-					$maxRange = isset($columnRules[2]) ? (int) $columnRules[2] : null;
-					$maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
-					
-					// Display the form field for an integer
-					$table[$currentRow][1] = '
-					<input id="' . $columnName . '" type="number"
-						name="' . $columnName . '"
-						value="' . ((int) $value) . '"'
-						. ($maxLength ? 'maxlength="' . $maxLength . '"' : '')
-						. ($minRange ? 'min="' . $minRange . '"' : '')
-						. ($maxRange ? 'max="' . $maxRange . '"' : '') . '
-						/>';
-					
-					break;
-				
-				### Floats ###
-				case "float":
-				case "double":
-				
-					// Identify all string-related form variables
-					$minRange = isset($columnRules[1]) ? (int) $columnRules[1] : null;
-					$maxRange = isset($columnRules[2]) ? (int) $columnRules[2] : null;
-					$maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
-					
-					// Display the form field for an integer
-					$formHTML .= '
-					<input id="' . $columnName . '" type="text"
-						name="' . $columnName . '"
-						value="' . ((int) $value) . '"'
-						. ($maxLength ? 'maxlength="' . ($maxLength + ceil($maxLength / 3)) . '"' : '') . '
-						/>';
-					
-					break;
-				
-				### Booleans ###
-				case "bool":
-				case "boolean":
-					
-					// If the boolean types are not declared, set defaults
-					$trueName = isset($columnRules[1]) ? $columnRules[1] : 'True';
-					$falseName = isset($columnRules[2]) ? $columnRules[2] : 'False';
-					
-					// Display the form field for a boolean
-					$table[$currentRow][1] = str_replace('value="' . $value . '"', 'value="' . $value . '" selected', '
-					<select id="' . $columnName . '" name="' . $columnName . '">
-						<option value="1">' . htmlspecialchars($trueName) . '</option>
-						<option value="0">' . htmlspecialchars($falseName) . '</option>
-					</select>');
-					
-					break;
-				
-				### Enumerators ###
-				case "enum-number":
-				case "enum-string":
-					
-					// Get the available list of enumerators
-					$enums = array_slice($columnRules, 1);
-					
-					// Display the form field for a boolean
-					$table[$currentRow][1] = '
-					<select id="' . $columnName . '" name="' . $columnName . '">';
-					
-					// Handle numeric enumerators differently than string enumerators
-					// These will have a numeric counter associated with each value
-					if($columnRules[0] == "enum-number")
-					{
-						$enumCount = count($enums);
+						// Get rid of the lookup keys, since it relates back to this one
+						if($columnName == $relatedClass::$lookupKey)
+						{
+							continue;
+						}
 						
-						for( $i = 0; $i < $enumCount; $i++ )
+						// Identify and process tags that were listed for this column
+						if(isset($relatedSchema['tags'][$columnName]))
 						{
-							$table[$currentRow][1] .= '
-							<option value="' . $i . '"' . ($value == $i ? ' selected' : '') . '>'  . htmlspecialchars($enums[$i]) . '</option>';
+							$tags = is_array($relatedSchema['tags'][$columnName]) ? $relatedSchema['tags'][$columnName] : [$relatedSchema['tags'][$columnName]];
+							
+							// Check if there are any tags that the user needs to test
+							foreach($tags as $tag)
+							{
+								switch($tag)
+								{
+									// If the tag cannot be modified, don't show it on the form
+									case Model::CANNOT_MODIFY: continue 3;
+								}
+							}
 						}
+						
+						$inputRules[] = [$columnName, $columnRules];
 					}
 					
-					// String Enumerators
-					else
+					// If any content was provided, add it to the overall table
+					if($inputRules)
 					{
-						foreach($enums as $enum)
+						$currentRow++;
+						$inputHTML = "";
+						
+						// If the child allows multiple records, list three options
+						// Otherwise, only show one option
+						for($i = 0;$i < ($relatedClass::$canHaveMany ? 3 : 1);$i++)
 						{
-							$table[$currentRow][1] .= '
-							<option value="' . htmlspecialchars($enum) . '"' . ($value == $enum ? ' selected' : '') . '>' . htmlspecialchars($enum) . '</option>';
+							$inputHTML .= '<tr>';
+							
+							foreach($inputRules as $rule)
+							{
+								list($columnName, $columnRules) = $rule;
+								
+								// If data was submitted by the user, set the column's value to their input
+								if(isset($submittedData[$relationName][$columnName][$i]))
+								{
+									$value = $submittedData[$relationName][$columnName][$i];
+								}
+								
+								// If user input was not submitted, set a default value for the column
+								else
+								{
+									// For update forms, use the database record as the default
+									if(isset($resourceData[$columnName]))
+									{
+										$value = $resourceData[$columnName];
+									}
+									
+									// Use the default value assigned by the related class' schema
+									else
+									{
+										$value = isset($relatedSchema['default'][$columnName]) ? $relatedSchema['default'][$columnName] : '';
+									}
+								}
+								
+								$inputHTML .= '<td>' . static::buildInput($columnName, $columnRules, $value, $relationName, $i) . '<br />' . ucwords(str_replace("_", " ", $columnName)) . '</td>';
+							}
+							
+							$inputHTML .= '</tr>';
 						}
+						
+						$table[$currentRow][0] = ucwords(str_replace("_", " ", $relationName));
+						$table[$currentRow][1] = '<table>' . $inputHTML . '</table>';
 					}
-					
-					$table[$currentRow][1] .= '
-					</select>';
-					
-					break;
+				}
 			}
 		}
 		
 		// End the Form
-		$table[$currentRow + 1] = ['Submit', '<input type="submit" name="submit" value="Submit" />'];
+		$table[$currentRow + 1] = ['', '<input type="submit" name="submit" value="Submit" />'];
 		
 		return $table;
+	}
+	
+	
+/****** Generate an input for a schema column ******/
+	public static function buildInput
+	(
+		$columnName			// <str> The name of the column being built.
+	,	$columnRules		// <int:array> The rules associated with the schema column.
+	,	$value				// <mixed> The value to assign to the input.
+	,	$parentCol = ""		// <str> The parent relationship column.
+	,	$number = 0			// <int> The number of the input.
+	)						// RETURNS <str> HTML of the input.
+	
+	// $inputHTML = static::buildInput($columnName, $columnRules, $value, $parentCol = "", $number = 0)
+	{
+		// Prepare the name of the input
+		$inputName = $parentCol == "" ? $columnName : $parentCol . "[" . $columnName . "][" . $number . "]";
+		
+		// Determine which column type the input is
+		switch($columnRules[0])
+		{
+			### Strings and Text ###
+			case "string":
+			case "text":
+				
+				// Identify all string-related form variables
+				$minLength = isset($columnRules[1]) ? (int) $columnRules[1] : 0;
+				$maxLength = isset($columnRules[2]) ? (int) $columnRules[2] : ($columnRules[0] == "text" ? 0 : 250);
+				
+				// Display a textarea for strings of 101 characters or more
+				if(!$maxLength or $maxLength > 100)
+				{
+					return '
+					<textarea id="' . $columnName . '" name="' . $columnName . '"'
+						. ($maxLength ? 'maxlength="' . $maxLength . '"' : '') . '>' . htmlspecialchars($value) . '</textarea>';
+				}
+				
+				// Display a text input for a string of 100 characters or less
+				return '
+				<input id="' . $columnName . '" type="text"
+					name="' . $inputName . '"
+					value="' . htmlspecialchars($value) . '"'
+					. ($maxLength ? 'maxlength="' . $maxLength . '"' : '') . '
+					/>';
+				
+			### Integers ###
+			case "tinyint":			// 256
+			case "smallint":		// 65k
+			case "mediumint":
+			case "int":
+			case "bigint":
+				
+				// Identify all string-related form variables
+				$minRange = isset($columnRules[1]) ? (int) $columnRules[1] : null;
+				$maxRange = isset($columnRules[2]) ? (int) $columnRules[2] : null;
+				$maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
+				
+				// Display the form field for an integer
+				return '
+				<input id="' . $columnName . '" type="number"
+					name="' . $inputName . '"
+					value="' . ((int) $value) . '"'
+					. ($maxLength ? 'maxlength="' . $maxLength . '"' : '')
+					. ($minRange ? 'min="' . $minRange . '"' : '')
+					. ($maxRange ? 'max="' . $maxRange . '"' : '') . '
+					/>';
+			
+			### Floats ###
+			case "float":
+			case "double":
+			
+				// Identify all string-related form variables
+				$minRange = isset($columnRules[1]) ? (int) $columnRules[1] : null;
+				$maxRange = isset($columnRules[2]) ? (int) $columnRules[2] : null;
+				$maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
+				
+				// Display the form field for an integer
+				return '
+				<input id="' . $columnName . '" type="text"
+					name="' . $inputName . '"
+					value="' . ((int) $value) . '"'
+					. ($maxLength ? 'maxlength="' . ($maxLength + ceil($maxLength / 3)) . '"' : '') . '
+					/>';
+			
+			### Booleans ###
+			case "bool":
+			case "boolean":
+				
+				// If the boolean types are not declared, set defaults
+				$trueName = isset($columnRules[1]) ? $columnRules[1] : 'True';
+				$falseName = isset($columnRules[2]) ? $columnRules[2] : 'False';
+				
+				// Display the form field for a boolean
+				return str_replace('value="' . $value . '"', 'value="' . $value . '" selected', '
+				<select id="' . $columnName . '" name="' . $inputName . '">
+					<option value="1">' . htmlspecialchars($trueName) . '</option>
+					<option value="0">' . htmlspecialchars($falseName) . '</option>
+				</select>');
+			
+			### Enumerators ###
+			case "enum-number":
+			case "enum-string":
+				
+				// Get the available list of enumerators
+				$enums = array_slice($columnRules, 1);
+				
+				// Display the form field for a boolean
+				$inputHTML = '
+				<select id="' . $columnName . '" name="' . $inputName . '">';
+				
+				// Handle numeric enumerators differently than string enumerators
+				// These will have a numeric counter associated with each value
+				if($columnRules[0] == "enum-number")
+				{
+					$enumCount = count($enums);
+					
+					for( $i = 0; $i < $enumCount; $i++ )
+					{
+						$inputHTML .= '
+						<option value="' . $i . '"' . ($value == $i ? ' selected' : '') . '>'  . htmlspecialchars($enums[$i]) . '</option>';
+					}
+				}
+				
+				// String Enumerators
+				else
+				{
+					foreach($enums as $enum)
+					{
+						$inputHTML .= '
+						<option value="' . htmlspecialchars($enum) . '"' . ($value == $enum ? ' selected' : '') . '>' . htmlspecialchars($enum) . '</option>';
+					}
+				}
+				
+				$inputHTML .= '
+				</select>';
+				
+				return $inputHTML;
+		}
 	}
 	
 	

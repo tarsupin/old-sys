@@ -13,20 +13,20 @@ if(!class_exists($url[1]))
 // Provide a simple CSS styling
 echo '
 <style>
-table a:link {
-	color: #666;
+.genTable a:link {
+	color: #777;
 	font-weight: bold;
 	text-decoration:none;
 }
-table a:visited {
+.genTable a:visited {
 	color: #999999;
 	font-weight:bold;
 	text-decoration:none;
 }
-table a:active, table a:hover { color: #bd5a35; text-decoration:underline; }
-table {
+.genTable a:active, .genTable a:hover { color: #bd5a35; text-decoration:underline; }
+.genTable {
 	font-family:Arial, Helvetica, sans-serif;
-	color:#666;
+	color:#777;
 	font-size:12px;
 	text-shadow: 1px 1px 0px #fff;
 	background:#eaebec;
@@ -36,15 +36,15 @@ table {
 	border-radius:3px;
 	box-shadow: 0 1px 2px #d1d1d1;
 }
-table th {
+.genTable th {
 	padding:4px 4px 4px 4px;
 	border-top:1px solid #fafafa;
 	border-bottom:1px solid #e0e0e0;
 	background: #ededed;
 }
-table td { padding:4px; background: #fafafa; }
-table tr.even td { background: #f6f6f6; }
-table tr:hover td { background: #f2f2f2; }
+.genTable td { padding:4px; background: #fafafa; font-family:Arial, Helvetica; font-size:12px; color:#777; }
+.genTable tr.even td { background: #f6f6f6; }
+.genTable tr:hover td { background: #f2f2f2; }
 </style>';
 
 // Prepare Values
@@ -66,9 +66,13 @@ switch($formType)
 			// Check if there is a record ID associated with an update
 			$lookupID = ($formType == "update" && isset($url[3]) ? $url[3] : null);
 			
+			// Process the Form
+			$class::processForm($submittedData, $lookupID = null);
+			
 			// Make sure the the submission is valid
 			if($class::verifyForm($submittedData, $lookupID))
 			{
+				/*
 				// Remove the "submit" element from the data posted
 				unset($submittedData['submit']);
 				
@@ -89,6 +93,7 @@ switch($formType)
 					
 					header("Location: /model/" . $class); exit;
 				}
+				*/
 			}
 			
 			// Display the Alerts
