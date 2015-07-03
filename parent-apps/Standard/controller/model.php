@@ -66,29 +66,19 @@ switch($formType)
 			// Check if there is a record ID associated with an update
 			$lookupID = ($formType == "update" && isset($url[3]) ? $url[3] : null);
 			
-			// Make sure the the submission is valid
-			if($class::verifyForm($submittedData, $lookupID))
+			// Process the Form
+			if($class::processForm($submittedData, $lookupID))
 			{
-				// Remove the "submit" element from the data posted
-				unset($submittedData['submit']);
-				
-				// If the submission is valid, process the form
 				if($formType == "create")
 				{
-					if($class::$formType($submittedData))
-					{
-						Alert::saveSuccess("Form Created", "The form data was properly submitted!");
-						
-						header("Location: /model/" . $class); exit;
-					}
+					Alert::saveSuccess("Form Created", "The form data was properly submitted!");
 				}
-				
-				else if($class::$formType($lookupID, $submittedData))
+				else
 				{
 					Alert::saveSuccess("Form Updated", "The form was properly updated!");
-					
-					header("Location: /model/" . $class); exit;
 				}
+				
+				header("Location: /model/" . $class); exit;
 			}
 			
 			// Display the Alerts

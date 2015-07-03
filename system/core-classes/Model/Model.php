@@ -339,10 +339,10 @@ abstract class Model {
 /****** Create a row in this model's table ******/
 	public static function create
 	(
-		$insertData = array()	// <str:mixed> The data to include when creating this entry.
-	)							// RETURNS <bool> TRUE if the row is created, FALSE otherwise.
+		$insertData = array()	// <str:mixed> The data to include when creating this record.
+	)							// RETURNS <int> The lookup ID (i.e. "last insert ID") created for this record.
 	
-	// static::create($insertData);
+	// $lookupID = static::create($insertData);
 	{
 		// Prepare Values
 		$columns = [];
@@ -361,7 +361,10 @@ abstract class Model {
 			$fields[] = $field;
 		}
 		
-		return Database::query("INSERT INTO `" . static::$table . "` (" . implode(", ", $columns) . ") VALUES (?" . str_repeat(", ?", count($fields) - 1) . ")", $fields);
+		// Insert the record
+		Database::query("INSERT INTO `" . static::$table . "` (" . implode(", ", $columns) . ") VALUES (?" . str_repeat(", ?", count($fields) - 1) . ")", $fields);
+		
+		return Database::$lastID;
 	}
 	
 	
@@ -409,6 +412,7 @@ abstract class Model {
 		// Add the final index
 		$fields[] = $lookupID;
 		
+		// Update the record
 		return Database::query("UPDATE `" . static::$table . "` SET " . $setSQL . " WHERE `" . static::$lookupKey . "`=? LIMIT 1", $fields);
 	}
 	
@@ -431,7 +435,7 @@ abstract class Model {
 	}
 	
 	
-/****** Delete a row in this model's table ******/
+/****** Delete a record (or multiple records) in this model's table ******/
 	public static function delete
 	(
 		$lookupID	// <T> The ID of the row to update (based on table's $lookupKey)
@@ -845,68 +849,89 @@ abstract class Model {
 	
 	// static::processForm($submittedData, $lookupID = null)
 	{
-		// If there is submitted data passed to the form
-		if($submittedData)
+		// We need to track what child data gets submitted
+		$classSubmissions = [];
+		
+		// Make sure there is submitted data passed to the form
+		if(!$submittedData) { return false; }
+		
+		// Loop through the schema's relationships and see if they were part of the submission
+		// For example, if the "User" form includes "User_ContactData" in its relationships, check to see if
+		// any "User_ContactData" records were included in this form.
+		foreach(static::$schema['relationships'] as $relationName => $relatedClass)
 		{
-			// Loop through the schema's relationships and see if they were posted
-			foreach(static::$schema['relationships'] as $relationName => $relatedClass)
+			// If a record of the relationship was found, we need to verify those values.
+			// Otherwise, skip to the next relationship.
+			if(!isset($submittedData[$relationName]))
 			{
-				// If a relationship was found, we need to verify those values
-				if(isset($submittedData[$relationName]))
+				continue;
+			}
+			
+			// A related child table has content posted in this form.
+			// Loop through the submitted data to extract the relevant pieces and verify it.
+			foreach($submittedData[$relationName] as $schemaEntry)
+			{
+				// If the user didn't change the default values (or left the row empty), we assume that they
+				// didn't want to create that record. Therefore, we don't check that row for errors.
+				if(!$relatedClass::checkIfSubmissionIsEmpty($schemaEntry))
 				{
-					//$relatedClass::verifySchema($submittedData);
-					var_dump($submittedData[$relationName]);
+					if($relatedClass::verifySchema($schemaEntry))
+					{
+						// Track this submission data so that it can be processed into the database - but only
+						// after the main table is processed (needs the lookup ID) and only if everything was
+						// processed successfully.
+						$classSubmissions[$relatedClass][] = $schemaEntry;
+					}
 				}
 			}
-			
-			// Validate each Schema Column
-			static::verifySchema($submittedData);
-			
-			return Validate::pass();
 		}
 		
-		return false;
-	}
-	
-	
-/****** Verify a CRUD form that was submitted ******/
-	public static function verifyForm
-	(
-		$submittedData		// <str:mixed> The data submitted to the form.
-	,	$lookupID = null	// <mixed> Only used for UPDATES: the value of the lookup key (to find a record).
-	)						// RETURNS <bool> TRUE on success, FALSE on failure.
-	
-	// static::verifyForm($submittedData, $lookupID = null)
-	{
-		// If there is submitted data passed to the form
-		if($submittedData)
+		// Validate each Schema Column
+		static::verifySchema($submittedData);
+		
+		// Check if the entire form validated successfully
+		if(!Validate::pass())
 		{
-			$requestMethod = $lookupID ? "PATCH" : "POST";
-			
-			// Make sure the this CRUD action has proper handling set up
-			if(!isset(static::$allowRequests[$requestMethod]))
-			{
-				Alert::error("CRUD Behavior", "The handling of the " . strtoupper($requestMethod) . " action is not set properly.");
-				return "";
-			}
-			
-			// Make sure this CRUD action is allowed
-			if(static::$allowRequests[$requestMethod] == self::CLOSED)
-			{
-				Alert::error("CRUD Behavior", "The " . strtoupper($requestMethod) . " action is not allowed.");
-				return "";
-			}
-			
-			// Make sure the user is authenticated
-			// <--- --->
-			
-			// Validate each Schema Column
-			static::verifySchema($submittedData);
-			
-			return Validate::pass();
+			// The form failed - end here with a failure
+			return false;
 		}
 		
-		return false;
+		// The form was successful. We need to run a series of updates on the database.
+		// Begin a Database Transaction
+		Database::startTransaction();
+		
+		// Create the Primary Table (if we were doing a "CREATE" form)
+		if(!$lookupID)
+		{
+			$lookupID = static::create($submittedData);
+		}
+		
+		// Update the Primary Table (if we were doing an "UPDATE" form)
+		else
+		{
+			static::update($lookupID, $submittedData);
+		}
+		
+		// Run all of the child data as creation scripts
+		foreach($classSubmissions as $relatedClass => $postedRecord)
+		{
+			// Delete any existing child records related to this lookup ID
+			$relatedClass::delete($lookupID);
+			
+			// Loop through the records posted and insert it into the database
+			foreach($postedRecord as $schemaEntry)
+			{
+				// Make sure that the child class is properly pointed at the primary class
+				// We need to set the missing lookup key
+				$schemaEntry[$relatedClass::$lookupKey] = $lookupID;
+				
+				// Run the creation process
+				$relatedClass::create($schemaEntry);
+			}
+		}
+		
+		// Commit the transaction
+		return Database::endTransaction();
 	}
 	
 	
@@ -950,8 +975,12 @@ abstract class Model {
 	
 	// static::verifySchemaColumn($columnRules, $valueToSet, $column)
 	{
+		// Prepare Values
 		$columnTitle = ucwords(str_replace("_", " ", $column));
+		$strLen = strlen($valueToSet);
 		
+		// Each schema column's first element is a type.
+		// Based on which type the column is, we'll modify the behavior.
 		switch($columnRules[0])
 		{
 			### Strings and Text ###
@@ -963,8 +992,6 @@ abstract class Model {
 				$maxLength = isset($columnRules[2]) ? (int) $columnRules[2] : ($columnRules[0] == "text" ? null : 250);
 				
 				// Make sure the data submitted is within the allowed character lengths
-				$strLen = strlen($valueToSet);
-				
 				if($strLen < $minLength)
 				{
 					return Alert::error($columnTitle . ' Length', $columnTitle . " must be at least " . $minLength . " characters.");
@@ -994,7 +1021,7 @@ abstract class Model {
 				// Identify all string-related form variables
 				$minRange = isset($columnRules[1]) ? (int) $columnRules[1] : null;
 				$maxRange = isset($columnRules[2]) ? (int) $columnRules[2] : null;
-				// $maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
+				$maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
 				
 				// Make sure the value is between the minimum and maximum ranges allowed
 				if($valueToSet < $minRange)
@@ -1015,7 +1042,7 @@ abstract class Model {
 				// Identify all string-related form variables
 				$minRange = isset($columnRules[1]) ? (double) $columnRules[1] : null;
 				$maxRange = isset($columnRules[2]) ? (double) $columnRules[2] : null;
-				// $maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
+				$maxLength = self::getLengthOfNumberType($columnRules[0], $minRange, $maxRange);
 				
 				// Make sure the value is between the minimum and maximum ranges allowed
 				if($valueToSet < $minRange)
@@ -1149,6 +1176,9 @@ abstract class Model {
 				// Provide the special handling for child models
 				if($relatedClassType == "Model_Child")
 				{
+					// Get the records from the related child class that point to the parent
+					$relatedClassData = $lookupID ? $relatedClass::search([$relatedClass::$lookupKey => $lookupID]) : [];
+					
 					// Loop through each column in the related schema
 					foreach($relatedSchema['columns'] as $columnName => $columnRules)
 					{
@@ -1180,12 +1210,23 @@ abstract class Model {
 					// If any content was provided, add it to the overall table
 					if($inputRules)
 					{
+						// Prepare Values
 						$currentRow++;
 						$inputHTML = "";
 						
+						// Prepare the number of child records to show
 						// If the child allows multiple records, list three options
 						// Otherwise, only show one option
-						for($i = 0;$i < ($relatedClass::$canHaveMany ? 3 : 1);$i++)
+						$numberOfRecords = $relatedClass::$canHaveMany ? 3 : 1;
+						
+						// If there is data that already exists, make sure the number of records reflects that.
+						if($relatedClassData and $relatedClass::$canHaveMany)
+						{
+							$numberOfRecords = count($relatedClassData) + 2;
+						}
+						
+						// Loop through a number of records
+						for($i = 0;$i < $numberOfRecords;$i++)
 						{
 							$inputHTML .= '<tr>';
 							
@@ -1194,18 +1235,18 @@ abstract class Model {
 								list($columnName, $columnRules) = $rule;
 								
 								// If data was submitted by the user, set the column's value to their input
-								if(isset($submittedData[$relationName][$columnName][$i]))
+								if(isset($submittedData[$relationName][$i][$columnName]))
 								{
-									$value = $submittedData[$relationName][$columnName][$i];
+									$value = $submittedData[$relationName][$i][$columnName];
 								}
 								
 								// If user input was not submitted, set a default value for the column
 								else
 								{
 									// For update forms, use the database record as the default
-									if(isset($resourceData[$columnName]))
+									if(isset($relatedClassData[$i][$columnName]))
 									{
-										$value = $resourceData[$columnName];
+										$value = $relatedClassData[$i][$columnName];
 									}
 									
 									// Use the default value assigned by the related class' schema
@@ -1248,7 +1289,7 @@ abstract class Model {
 	// $inputHTML = static::buildInput($columnName, $columnRules, $value, $parentCol = "", $number = 0)
 	{
 		// Prepare the name of the input
-		$inputName = $parentCol == "" ? $columnName : $parentCol . "[" . $columnName . "][" . $number . "]";
+		$inputName = $parentCol == "" ? $columnName : $parentCol . "[" . $number . "][" . $columnName . "]";
 		
 		// Determine which column type the input is
 		switch($columnRules[0])
@@ -1696,5 +1737,72 @@ abstract class Model {
 	// $response = static::deleteRequest($lookupID, $request);
 	{
 		return static::delete($lookupID);
+	}
+	
+	
+/****** Check if a schema submission is empty ******/
+	public static function checkIfSubmissionIsEmpty
+	(
+		$submittedData		// <str:mixed> The data submitted that needs to be tested.
+	)						// RETURNS <bool> TRUE if all tests passed, FALSE on failure.
+	
+	// static::checkIfSubmissionIsEmpty($submittedData)
+	{
+		// Prepare Values
+		$columns = static::$schema['columns'];
+		$defaults = isset(static::$schema['defaults']) ? static::$schema['defaults'] : [];
+		
+		foreach($submittedData as $key => $value)
+		{
+			// If the schema does not include this element, ignore it
+			if(!isset($columns[$key]))
+			{
+				continue;
+			}
+			
+			// Check if the column was set to the default value
+			if(isset($defaults[$key]))
+			{
+				if($defaults[$key] == $value)
+				{
+					continue;
+				}
+				
+				return false;
+			}
+			
+			// Check if the column is empty
+			if($value === "")
+			{
+				continue;
+			}
+			
+			// If the column is a number, we consider it "empty" if it defaults to 0
+			switch($columns[$key][0])
+			{
+				case "tinyint":
+				case "smallint":
+				case "mediumint":
+				case "int":
+				case "bigint":
+				case "float":
+				case "double":
+				case "bool":
+				case "boolean":
+				case "enum-number":
+					
+					// If it matches "0" or 0, the value is empty
+					if($value == 0)
+					{
+						continue 2;
+					}
+					
+					return false;
+			}
+			
+			return false;
+		}
+		
+		return true;
 	}
 }
