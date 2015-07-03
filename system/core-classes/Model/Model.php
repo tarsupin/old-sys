@@ -294,6 +294,18 @@ abstract class Model {
 	}
 	
 	
+/****** Check if a record exists ******/
+	public static function exists
+	(
+		$lookupID		// <T> The ID of the row to retrieve (based on table's $lookupKey)
+	)					// RETURNS <str:mixed> The data from the row.
+	
+	// $recordExists = static::exists($lookupID);
+	{
+		return (bool) Database::selectOne("SELECT " . static::$lookupKey . " FROM `" . static::$table . "` WHERE `" . static::$lookupKey . "` = ? LIMIT 1", array($lookupID));
+	}
+	
+	
 /****** Retrieve a row (or multiple rows) from this model's table based on search parameters ******/
 	public static function search
 	(
@@ -328,11 +340,14 @@ abstract class Model {
 		
 		$orderStr = $orderStr ? " ORDER BY " . $orderStr : "";
 		
+		// Prepare the Limit / Pagination
+		$limitStr = $limit ? " LIMIT " . ($offset + 0) . ", " . ($limit + 0) : "";
+		
 		// Get the number of rows that were possible to retrieve (for pagination purposes) 
 		$rowCount = Database::selectValue("SELECT COUNT(*) as totalNum FROM `" . static::$table . "`" . ($whereStr ? " WHERE " . $whereStr : ""), $sqlArray);
 		
 		// Pull the rows located by the search
-		return Database::selectMultiple("SELECT " . $columns . " FROM `" . static::$table . "`" . ($whereStr ? " WHERE " . $whereStr : "") . $orderStr . " LIMIT " . ($offset + 0) . ", " . ($limit + 0), $sqlArray);
+		return Database::selectMultiple("SELECT " . $columns . " FROM `" . static::$table . "`" . ($whereStr ? " WHERE " . $whereStr : "") . $orderStr . $limitStr, $sqlArray);
 	}
 	
 	
@@ -464,7 +479,7 @@ abstract class Model {
 		// Reserved Keyword: LIMIT
 		if(isset($searchArgs['limit']))
 		{
-			$limit = abs($searchArgs['limit']);
+			$limit = $searchArgs['limit'] ? abs($searchArgs['limit']) : 0;
 			
 			unset($searchArgs['limit']);
 		}
@@ -851,6 +866,7 @@ abstract class Model {
 	{
 		// We need to track what child data gets submitted
 		$classSubmissions = [];
+		$relatedClassList = [];
 		
 		// Make sure there is submitted data passed to the form
 		if(!$submittedData) { return false; }
@@ -867,20 +883,47 @@ abstract class Model {
 				continue;
 			}
 			
-			// A related child table has content posted in this form.
+			$relatedClassList[] = $relatedClass;
+			
+			// A related class has content posted in this form.
 			// Loop through the submitted data to extract the relevant pieces and verify it.
-			foreach($submittedData[$relationName] as $schemaEntry)
+			foreach($submittedData[$relationName] as $postedData)
 			{
-				// If the user didn't change the default values (or left the row empty), we assume that they
-				// didn't want to create that record. Therefore, we don't check that row for errors.
-				if(!$relatedClass::checkIfSubmissionIsEmpty($schemaEntry))
+				$relatedClassType = get_parent_class($relatedClass);
+				
+				// Classes with the "Child" model are verified differently than classes with "Join" models
+				if($relatedClassType == "Model_Child")
 				{
-					if($relatedClass::verifySchema($schemaEntry))
+					// If the user didn't change the default values (or left the row empty), we assume that they
+					// didn't want to create that record. Therefore, we don't check that row for errors.
+					if(!$relatedClass::checkIfSubmissionIsEmpty($postedData))
 					{
-						// Track this submission data so that it can be processed into the database - but only
-						// after the main table is processed (needs the lookup ID) and only if everything was
-						// processed successfully.
-						$classSubmissions[$relatedClass][] = $schemaEntry;
+						if($relatedClass::verifySchema($postedData))
+						{
+							// Track this submission data so that it can be processed into the database - but only
+							// after the main table is processed (needs the lookup ID) and only if everything was
+							// processed successfully.
+							$classSubmissions[$relatedClass][] = $postedData;
+						}
+					}
+				}
+				else if($relatedClassType == "Model_Join")
+				{
+					// If the data provided isn't empty, just verify that it's a valid ID being linked
+					if($postedData != "")
+					{
+						// Get the class that was being joined
+						$joinedClass = $relatedClass::$relatedClass;
+						
+						// Make sure the record exists
+						if(!$joinedClass::exists($postedData))
+						{
+							Alert::error($relationName . " Failed", "Provided an invalid option for `" . $relationName . "`.");
+							continue;
+						}
+						
+						// Track this submission data so that it can be processed later.
+						$classSubmissions[$relatedClass][] = [$relatedClass::$relatedKey => $postedData];
 					}
 				}
 			}
@@ -912,13 +955,17 @@ abstract class Model {
 			static::update($lookupID, $submittedData);
 		}
 		
-		// Run all of the child data as creation scripts
-		foreach($classSubmissions as $relatedClass => $postedRecord)
+		// Loop through each class that has child records and purge existing linked records
+		foreach($relatedClassList as $relatedClass)
 		{
 			// Delete any existing child records related to this lookup ID
 			$relatedClass::delete($lookupID);
-			
-			// Loop through the records posted and insert it into the database
+		}
+		
+		// Add all of the related records
+		foreach($classSubmissions as $relatedClass => $postedRecord)
+		{
+			// Loop through the records posted and insert them into the database
 			foreach($postedRecord as $schemaEntry)
 			{
 				// Make sure that the child class is properly pointed at the primary class
@@ -1171,11 +1218,11 @@ abstract class Model {
 				$relatedSchema = $relatedClass::$schema;
 				$relatedClassType = get_parent_class($relatedClass);
 				
-				$inputRules = [];
-				
 				// Provide the special handling for child models
 				if($relatedClassType == "Model_Child")
 				{
+					$inputRules = [];
+					
 					// Get the records from the related child class that point to the parent
 					$relatedClassData = $lookupID ? $relatedClass::search([$relatedClass::$lookupKey => $lookupID]) : [];
 					
@@ -1252,7 +1299,7 @@ abstract class Model {
 									// Use the default value assigned by the related class' schema
 									else
 									{
-										$value = isset($relatedSchema['default'][$columnName]) ? $relatedSchema['default'][$columnName] : '';
+										$value = isset($relatedSchema['defaults'][$columnName]) ? $relatedSchema['defaults'][$columnName] : '';
 									}
 								}
 								
@@ -1265,6 +1312,118 @@ abstract class Model {
 						$table[$currentRow][0] = ucwords(str_replace("_", " ", $relationName));
 						$table[$currentRow][1] = '<table>' . $inputHTML . '</table>';
 					}
+				}
+				
+				// Provide the special handling for join models
+				else if($relatedClassType == "Model_Join")
+				{
+					// Need to identify the join class (the related class to this join class)
+					$joinedClass = $relatedClass::$relatedClass;
+					
+					// Get the records from the join child class that point to the parent
+					$relatedClassData = $lookupID ? $relatedClass::search([$relatedClass::$lookupKey => $lookupID]) : [];
+					
+					// Prepare the number of records to show.
+					// Join tables can always have multiple records.
+					// If there is data that already exists, make sure the number of records reflects that.
+					$numberOfRecords = $relatedClassData ? count($relatedClassData) + 2 : 3;
+					
+					// Extract crucial information from the join class - it's lookup key and display format
+					$joinKey = $joinedClass::$lookupKey;
+					$displayFormat = $joinedClass::$displayFormat ? $joinedClass::$displayFormat : "";
+					
+					// Get the full list of records from the join class
+					$joinRecords = $joinedClass::search(['limit' => 0]);
+					
+					// Create a dropdown based on the join records
+					$dropdownPrep = [];
+					
+					foreach($joinRecords as $record)
+					{
+						// Prepare the key for the dropdown
+						$key = $record[$joinKey];
+						
+						// Use the join class' display format to format the dropdown text
+						if($displayFormat)
+						{
+							$text = $displayFormat;
+							
+							foreach($record as $k => $v)
+							{
+								$text = str_replace("{" . $k . "}", $v, $text);
+							}
+						}
+						
+						// If there is no display format provided, we'll fake one
+						else
+						{
+							$text = $record[$joinKey] . ": ";
+							
+							unset($record[$joinKey]);
+							
+							foreach($record as $k => $v)
+							{
+								$text .= $v . ", ";
+							}
+							
+							$text = substr(trim($text, ","), 0, 55);
+						}
+						
+						$dropdownPrep[$key] = $text;
+					}
+					
+					// Convert the list of records into selection options
+					$dropdownOptions = "";
+					
+					foreach($dropdownPrep as $key => $text)
+					{
+						$dropdownOptions .= '
+						<option value="' . $key . '">' . $text . '</option>';
+					}
+					
+					// Prepare Values
+					$currentRow++;
+					$inputHTML = "";
+					
+					// Loop through a number of records
+					for($i = 0;$i < $numberOfRecords;$i++)
+					{
+						// If data was submitted by the user, set the column's value to their input
+						$value = "";
+						
+						if(isset($submittedData[$relationName][$i]))
+						{
+							$value = $submittedData[$relationName][$i];
+						}
+						
+						// If user input was not submitted, set a default value for the column
+						else
+						{
+							// For update forms, use the database record as the default
+							if(isset($relatedClassData[$i]))
+							{
+								$value = $relatedClassData[$i][$relatedClass::$relatedKey];
+							}
+							
+							// Use the default value assigned by the related class' schema
+							else if(isset($relatedSchema['defaults'][$relatedClass::$relatedKey]))
+							{
+								$value = $relatedSchema['defaults'][$relatedClass::$relatedKey];
+							}
+						}
+						
+						// Create the selection dropdown
+						$inputHTML .= '
+						<tr><td>
+						<select name="' . $relationName . '[' . $i . ']">
+							<option value="">-- SELECT AN OPTION --</option>
+							' . str_replace('value="' . $value . '"', 'value="' . $value . '" selected', $dropdownOptions) . '
+						</select>
+						</td></tr>';
+					}
+					
+					$table[$currentRow][0] = ucwords(str_replace("_", " ", $relationName));
+					$table[$currentRow][1] = '<table>' . $inputHTML . '</table>';
 				}
 			}
 		}
