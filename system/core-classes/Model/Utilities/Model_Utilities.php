@@ -97,10 +97,9 @@ abstract class Model_Utilities {
 	const ENCRYPTED_SECURE = 40;	// <int> Requires authentication + integrity + replay prevention + encryption.
 	
 	// Schema Tag Constants
-	const CANNOT_MODIFY = 1;		// <int> This value cannot be modified.
-	const AUTO_INCREMENT = 2;		// <int> The column is an auto-incrementing primary key.
-	const HIDE = 3;					// <int> The column is hidden from generic forms.
-	const ENTITY_CONVERT = 4;		// <int> Convert common windows-based entities to normal (", ', etc).
+	const CANNOT_SET = 1;			// <int> This value can be set on creation.
+	const CANNOT_MODIFY = 2;		// <int> This value cannot be modified (updated).
+	const ENTITY_CONVERT = 3;		// <int> Convert common windows-based entities to normal (", ', etc).
 	
 	
 /****** Extract keywords from search arguments ******/
@@ -326,26 +325,12 @@ abstract class Model_Utilities {
 		$fetchRows = static::search($searchArgs, $rowCount);
 		
 		// Begin the Table
+		// Note that we need to set a fake value ~opts~ for the options menu on the left
 		$tableData = ['head' => ["~opts~" => "Options"], 'data' => []];
 		
 		// Loop through each column in the schema
 		foreach($schema['columns'] as $columnName => $columnRules)
 		{
-			// Identify and process tags that were listed for this column
-			if(isset($schema['tags'][$columnName]))
-			{
-				// Check if there are any tags that the user needs to test
-				foreach($schema['tags'][$columnName] as $tag)
-				{
-					switch($tag)
-					{
-						// If the tag is hidden, don't show it
-						case self::HIDE:
-							continue 3;
-					}
-				}
-			}
-			
 			// If we're currently sorting by this column, provide special behavior to show this
 			if($columnSorted == $columnName)
 			{
@@ -361,6 +346,17 @@ abstract class Model_Utilities {
 			else
 			{
 				$tableData['head'][$columnName] = '<a href="/model/' . $class . '?' . Link::queryHold("columns", "limit", "page") . "&sort=" . $columnName . '">' . ucwords(str_replace("_", " ", $columnName)) . '</a>';
+			}
+			
+			// If this column has special visibility rules, update the values here
+			
+			// Numeric enumerators should be shown with their text values
+			if($columnRules[0] == "enum-number")
+			{
+				foreach($fetchRows as $key => $row)
+				{
+					$fetchRows[$key][$columnName] = $row[$columnName] . ": " . static::$schema['columns'][$columnName][1 + $row[$columnName]];
+				}
 			}
 		}
 		
@@ -384,35 +380,6 @@ abstract class Model_Utilities {
 				if(isset($row[$columnName]))
 				{
 					$tableData['data'][$i][] = $row[$columnName];
-				}
-				
-				// If there is no row entry, it must be a child table of some sort
-				else
-				{
-					// Prepare Values
-					$inputHTML = "";
-					$columnRules = $schema['columns'][$columnName];
-					
-					/*
-						In order to handle related tables, the class needs to provide the following method:
-							::getFormatted($lookupID)
-						
-						This will allow the table to return proper human-readable data entry.
-					*/
-					
-					// One-to-One relationships
-					if($columnRules[0] == 'has-one')
-					{
-						$inputHTML = "ONE";
-					}
-					
-					// One-to-Many relationships
-					else if($columnRules[0] == 'has-many')
-					{
-						$inputHTML = "MANY";
-					}
-					
-					$tableData['data'][$i][] = $inputHTML;
 				}
 			}
 		}
@@ -474,8 +441,7 @@ abstract class Model_Utilities {
 				{
 					switch($tag)
 					{
-						// If the tag cannot be modified, don't show it on the form
-						//case Model::CANNOT_MODIFY: continue 3;
+						
 					}
 				}
 			}
@@ -806,18 +772,20 @@ abstract class Model_Utilities {
 		// Loop through each column in the schema
 		foreach($schema['columns'] as $columnName => $columnRules)
 		{
-			// Identify and process tags that were listed for this column
-			if(isset($schema['tags'][$columnName]))
+			// For create forms, if this tag cannot be set, bypass this entry
+			if(!$lookupID and static::tagExists($columnName, self::CANNOT_SET))
 			{
-				// Check if there are any tags that the user needs to test
-				foreach($schema['tags'][$columnName] as $tag)
-				{
-					switch($tag)
-					{
-						// If the tag cannot be modified, don't show it on the form
-						case Model::CANNOT_MODIFY: continue 3;
-					}
-				}
+				continue;
+			}
+			
+			$currentRow++;
+			$table[$currentRow][0] = ucwords(str_replace("_", " ", $columnName));
+			
+			// For update forms, if this tag cannot be modified, show it as readonly
+			if($lookupID and static::tagExists($columnName, self::CANNOT_MODIFY))
+			{
+				$table[$currentRow][1] = $resourceData[$columnName];
+				continue;
 			}
 			
 			// If data was submitted by the user, set the column's value to their input
@@ -827,23 +795,18 @@ abstract class Model_Utilities {
 			}
 			
 			// If user input was not submitted, set a default value for the column
-			else
+			// For update forms, use the database record as the default
+			else if(isset($resourceData[$columnName]))
 			{
-				// For update forms, use the database record as the default
-				if(isset($resourceData[$columnName]))
-				{
-					$value = $resourceData[$columnName];
-				}
-				
-				// Use the default value assigned by the class' schema
-				else
-				{
-					$value = isset($schema['default'][$columnName]) ? $schema['default'][$columnName] : '';
-				}
+				$value = $resourceData[$columnName];
 			}
 			
-			$currentRow++;
-			$table[$currentRow][0] = ucwords(str_replace("_", " ", $columnName));
+			// For creation forms, use the default value assigned by the class' schema
+			else
+			{
+				$value = isset($schema['default'][$columnName]) ? $schema['default'][$columnName] : '';
+			}
+			
 			$table[$currentRow][1] = static::buildInput($columnName, $columnRules, $value);
 		}
 		
@@ -873,18 +836,10 @@ abstract class Model_Utilities {
 							continue;
 						}
 						
-						// Identify and process tags that were listed for this column
-						if(isset($relatedSchema['tags'][$columnName]))
+						// If the tag cannot be modified, don't show it on the form
+						if(self::tagExists($columnName, self::CANNOT_MODIFY))
 						{
-							// Check if there are any tags that the user needs to test
-							foreach($relatedSchema['tags'][$columnName] as $tag)
-							{
-								switch($tag)
-								{
-									// If the tag cannot be modified, don't show it on the form
-									case Model::CANNOT_MODIFY: continue 3;
-								}
-							}
+							continue;
 						}
 						
 						$inputRules[] = [$columnName, $columnRules];
@@ -924,19 +879,16 @@ abstract class Model_Utilities {
 								}
 								
 								// If user input was not submitted, set a default value for the column
+								// For update forms, use the database record as the default
+								else if(isset($relatedClassData[$i][$columnName]))
+								{
+									$value = $relatedClassData[$i][$columnName];
+								}
+									
+								// For create forms, use the default value assigned by the related class' schema
 								else
 								{
-									// For update forms, use the database record as the default
-									if(isset($relatedClassData[$i][$columnName]))
-									{
-										$value = $relatedClassData[$i][$columnName];
-									}
-									
-									// Use the default value assigned by the related class' schema
-									else
-									{
-										$value = isset($relatedSchema['defaults'][$columnName]) ? $relatedSchema['defaults'][$columnName] : '';
-									}
+									$value = isset($relatedSchema['defaults'][$columnName]) ? $relatedSchema['defaults'][$columnName] : '';
 								}
 								
 								$inputHTML .= '<td>' . static::buildInput($columnName, $columnRules, $value, $relationName, $i) . '<br />' . ucwords(str_replace("_", " ", $columnName)) . '</td>';
@@ -1101,7 +1053,7 @@ abstract class Model_Utilities {
 				if(!$maxLength or $maxLength > 100)
 				{
 					return '
-					<textarea id="' . $columnName . '" name="' . $columnName . '"'
+					<textarea id="' . $columnName . '" name="' . $inputName . '"'
 						. ($maxLength ? 'maxlength="' . $maxLength . '"' : '') . '>' . htmlspecialchars($value) . '</textarea>';
 				}
 				
@@ -1599,5 +1551,24 @@ abstract class Model_Utilities {
 		}
 		
 		return true;
+	}
+	
+	
+/****** Check if a particular tag was set ******/
+	public static function tagExists
+	(
+		$column		// <str> The column to check whether or not the tag exists on it.
+	,	$tag		// <str> The tag to check.
+	)				// RETURNS <bool> TRUE if the tag exists, FALSE if it doesn't.
+	
+	// static::tagExists($column, $tag)
+	{
+		// If the column doesn't have any tag sets, no need to go further
+		if(!isset(static::$schema['tags'][$column]))
+		{
+			return false;
+		}
+		
+		return in_array($tag, static::$schema['tags'][$column]);
 	}
 }

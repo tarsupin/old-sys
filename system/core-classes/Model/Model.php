@@ -37,8 +37,8 @@ abstract class Example extends Model {
 		],
 		
 		'tags' => [
-			'id'		=> [self::AUTO_INCREMENT, self::CANNOT_MODIFY],
-			'my_enum'	=> [self::HIDE]
+			'id'		=> [self::CANNOT_SET, self::CANNOT_MODIFY],
+			'my_enum'	=> [self::CANNOT_MODIFY]
 		],
 		
 		'index' => [
@@ -287,18 +287,9 @@ abstract class Model extends Model_Utilities {
 			}
 			
 			// Check if there are any essential tags that need to be identified before inserting to the database
-			if(isset(static::$schema['tags'][$column]))
+			if(static::tagExists($column, self::ENTITY_CONVERT))
 			{
-				foreach(static::$schema['tags'][$column] as $tag)
-				{
-					switch($tag)
-					{
-						// Fix common windows characters (can cause issues with database)
-						case self::ENTITY_CONVERT:
-							$field = Data_Format::convertWindowsText($field);
-							break;
-					}
-				}
+				$field = Data_Format::convertWindowsText($field);
 			}
 			
 			$columns[] = $column;

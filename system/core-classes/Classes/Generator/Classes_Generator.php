@@ -260,7 +260,7 @@ foreach($schema['columns'] as $columnName => $columnRules)
 			switch($tag)
 			{
 				// If the tag cannot be modified, don't show it on the form
-				case Model::CANNOT_MODIFY: continue 3;
+				case Model::CANNOT_SET: continue 3;
 			}
 		}
 	}

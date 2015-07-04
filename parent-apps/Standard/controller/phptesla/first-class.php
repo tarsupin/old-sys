@@ -83,8 +83,7 @@ abstract class Example extends Model {
 		],
 		
 		'tags' => [
-			'id'		=> [self::AUTO_INCREMENT, self::CANNOT_MODIFY],
-			'my_enum'	=> self::HIDE
+			'id'		=> [self::CANNOT_SET, self::CANNOT_MODIFY]
 		],
 		
 		'index' => [

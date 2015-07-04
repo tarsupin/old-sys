@@ -1,8 +1,8 @@
 <?php /*
 
-----------------------------------
+---------------------------------
 ------ About the URL Class ------
-----------------------------------
+---------------------------------
 
 This plugin provides simple functionality for URLs, which is also essential for loading the URL segments into $url during system configuration.
 
