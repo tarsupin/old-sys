@@ -84,7 +84,7 @@ abstract class Email_Send {
 		,	"sender"		=> $emailFrom
 		);
 		
-		Database::query("INSERT INTO log_email (recipient, subject, message, details, date_sent) VALUES (?, ?, ?, ?, ?)", array($primeRecipient, $subject, $message, Serialize::encode($details), time()));
+		Database::query("INSERT INTO log_email (recipient, subject, message, details, date_sent) VALUES (?, ?, ?, ?, ?)", array($primeRecipient, $subject, $message, json_encode($details), time()));
 		
 		// Localhost Versions, just edit email.html with the message
 		if(ENVIRONMENT == "local")
@@ -185,7 +185,7 @@ Subject: " . $subject . "
 		,	"file"			=> $filename
 		);
 		
-		Database::query("INSERT INTO log_email (recipient, subject, message, details, date_sent) VALUES (?, ?, ?, ?, ?)", array($primeRecipient, $subject, $message, Serialize::encode($details), time()));
+		Database::query("INSERT INTO log_email (recipient, subject, message, details, date_sent) VALUES (?, ?, ?, ?, ?)", array($primeRecipient, $subject, $message, json_encode($details), time()));
 		
 		// Localhost Versions, just edit email.html with the message
 		if(ENVIRONMENT == "local")

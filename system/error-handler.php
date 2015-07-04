@@ -58,7 +58,7 @@ function customErrorHandler($errorNumber, $errorString, $errorFile, $errorLine)
 			// Prepare Logging Values
 			$class = isset($origin['class']) ? $origin['class'] : "";
 			$function  = isset($origin['function']) ? $origin['function'] : "";
-			$argString = isset($origin['args']) ? Text_Utilities::convertArrayToArgumentString($origin['args']) : "";
+			$argString = isset($origin['args']) ? Data_Utilities::convertArrayToArgumentString($origin['args']) : "";
 			$filePath = (isset($behind['file']) ? str_replace(dirname(SYS_PATH), "", $behind['file']) : '');
 			$fileLine = (isset($behind['line']) ? $behind['line'] : 0);
 			

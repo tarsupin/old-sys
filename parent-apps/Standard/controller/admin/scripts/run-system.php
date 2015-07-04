@@ -53,7 +53,7 @@ if(isset($_GET['action']) and $_GET['action'] == "run")
 	{
 		$fileContents = File::read($file);
 		
-		$siteHandle[] = Text_Search::between($fileContents, 'Config::$data[\'database\'][\'name\'] = "', '";');
+		$siteHandle[] = Data_Parse::between($fileContents, 'Config::$data[\'database\'][\'name\'] = "', '";');
 	}
 	
 	// Make sure the system was able to collect the appropriate site handles

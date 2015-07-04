@@ -178,7 +178,7 @@ abstract class WidgetLoader {
 			}
 			
 			// Use the JSON value provided to insert arguments that the widget uses
-			$instructions = Serialize::decode($widget['instructions']);
+			$instructions = json_decode($widget['instructions']);
 			
 			// Make sure the instructions come from a valid array
 			if(!is_array($instructions)) { continue; }

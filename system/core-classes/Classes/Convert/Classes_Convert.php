@@ -145,7 +145,7 @@ abstract class Classes_Convert {
 		}
 		
 		// Remove Documentation
-		//$between = Text_Search::through($fullContent, "/*", "*/");
+		//$between = Data_Parse::through($fullContent, "/*", "*/");
 		//$fullContent = str_replace($between, "", $fullContent);
 		
 		// Display Result
@@ -325,7 +325,7 @@ abstract class Classes_Convert {
 		}
 		
 		// If there is a more advanced situation, such as an array, we need to parse it differently
-		if($check = Text_Search::between($line, $before, ">"))
+		if($check = Data_Parse::between($line, $before, ">"))
 		{
 			// Split the hypothetical array into first and second parts
 			$exp = explode(":", $check, 2);
@@ -347,7 +347,7 @@ abstract class Classes_Convert {
 					if(strpos($exp[1], "[") !== false)
 					{
 						// Repeat the same test again
-						$nest = Text_Search::between($exp[1], "[", "]");
+						$nest = Data_Parse::between($exp[1], "[", "]");
 						
 						$nestExp = explode(":", $nest, 2);
 						

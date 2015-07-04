@@ -204,11 +204,11 @@ class Time_Timer {
 		,	"timerActivation"	=> "a"
 		);
 		
-		$save = Serialize::changeKeys($this, $keyChanges);
+		$save = Data_JSON::changeKeys($this, $keyChanges);
 		
 		unset($save->timestamp);		// We don't need to track the timestamp
 		
-		return Serialize::encode($save);
+		return json_encode($save);
 	}
 	
 	
@@ -221,7 +221,7 @@ class Time_Timer {
 	// $schedule->load($saveData);
 	{
 		// Decode the loaded string
-		if(!$saveData = Serialize::decode($saveData, false))
+		if(!$saveData = json_decode($saveData, false))
 		{
 			return;
 		}
@@ -236,7 +236,7 @@ class Time_Timer {
 			,	"a"			=> "timerActivation"
 			);
 			
-			$saveData = Serialize::changeKeys($saveData, $keyChanges);
+			$saveData = Data_JSON::changeKeys($saveData, $keyChanges);
 		}
 		
 		// Load the content

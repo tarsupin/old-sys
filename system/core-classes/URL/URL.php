@@ -157,12 +157,9 @@ abstract class URL {
 		}
 		
 		// Fix empty paths
-		if(isset($parseURL['path']))
+		if(isset($parseURL['path']) and $parseURL['path'] == '/')
 		{
-			if($parseURL['path'] == "/" or $parseURL['path'] == "")
-			{
-				unset($parseURL['path']);
-			}
+			$parseURL['path'] = "";
 		}
 		
 		// We can end here if we only need simple data
@@ -184,7 +181,7 @@ abstract class URL {
 		$parseURL['scheme'] = isset($parseURL['scheme']) ? $parseURL['scheme'] : "http";
 		
 		// Prepare Full URL
-		$parseURL['full'] = $parseURL['scheme'] . "://" . $parseURL['host'] . (isset($parseURL['path']) ? "/" . $parseURL['path'] : "") . (isset($parseURL['query']) ? "?" . $parseURL['query'] : "") . (isset($parseURL['fragment']) ? "#" . $parseURL['fragment'] : "");
+		$parseURL['full'] = $parseURL['scheme'] . "://" . $parseURL['host'] . (isset($parseURL['path']) and $parseURL['path'] ? "/" . $parseURL['path'] : "") . (isset($parseURL['query']) ? "?" . $parseURL['query'] : "") . (isset($parseURL['fragment']) ? "#" . $parseURL['fragment'] : "");
 		
 		return $parseURL;
 	}

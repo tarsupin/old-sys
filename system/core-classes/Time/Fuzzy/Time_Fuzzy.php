@@ -79,10 +79,10 @@ abstract class Time_Fuzzy {
 					return "in less than a minute";
 				}
 				
-				return "in " . NumberToWord::convert(ceil($secondsUntil / 60)) . " minutes";
+				return "in " . Data_Number::convert(ceil($secondsUntil / 60)) . " minutes";
 			}
 			
-			return "in " . NumberToWord::convert(round($secondsUntil / 60, -1)) . " minutes";
+			return "in " . Data_Number::convert(round($secondsUntil / 60, -1)) . " minutes";
 		}
 		
 		// If the timestamp is within the next month
@@ -102,7 +102,7 @@ abstract class Time_Fuzzy {
 					return "tomorrow";
 				}
 				
-				return "in " . NumberToWord::convert($hoursUntil) . " hours";
+				return "in " . Data_Number::convert($hoursUntil) . " hours";
 			}
 			
 			// If the timestamp is within a week
@@ -115,7 +115,7 @@ abstract class Time_Fuzzy {
 					return "in a day";
 				}
 				
-				return "in " . NumberToWord::convert($daysUntil) . " days";
+				return "in " . Data_Number::convert($daysUntil) . " days";
 			}
 			
 			// If the time is listed sometime next week
@@ -131,7 +131,7 @@ abstract class Time_Fuzzy {
 				return "in a week";
 			}
 			
-			return "in " . NumberToWord::convert($weeksUntil) . " weeks";
+			return "in " . Data_Number::convert($weeksUntil) . " weeks";
 		}
 		
 		// If the timestamp was listed in the next year
@@ -149,7 +149,7 @@ abstract class Time_Fuzzy {
 				return "in a month";
 			}
 			
-			return "in " . NumberToWord::convert($monthsUntil) . " months";
+			return "in " . Data_Number::convert($monthsUntil) . " months";
 		}
 		
 		// Return the timestamp as a "Month Year" style
@@ -185,7 +185,7 @@ abstract class Time_Fuzzy {
 			}
 			else if($secondsAgo < 1200)
 			{
-				return NumberToWord::convert(round($secondsAgo / 60)) . " minutes ago";
+				return Data_Number::convert(round($secondsAgo / 60)) . " minutes ago";
 			}
 			
 			return floor($secondsAgo / 60) . " minutes ago";
@@ -202,7 +202,7 @@ abstract class Time_Fuzzy {
 					return "an hour ago";
 				}
 				
-				return NumberToWord::convert(floor($secondsAgo / 3600)) . " hours ago";
+				return Data_Number::convert(floor($secondsAgo / 3600)) . " hours ago";
 			}
 			
 			// Yesterday (or, several hours ago as a fallback)
@@ -213,7 +213,7 @@ abstract class Time_Fuzzy {
 					return "yesterday";
 				}
 				
-				return NumberToWord::convert(floor($secondsAgo / 3600)) . " hours ago";
+				return Data_Number::convert(floor($secondsAgo / 3600)) . " hours ago";
 			}
 			
 			// Days Ago
@@ -222,7 +222,7 @@ abstract class Time_Fuzzy {
 				return "a day ago";
 			}
 			
-			return NumberToWord::convert(round($secondsAgo / 86400)) . " days ago";
+			return Data_Number::convert(round($secondsAgo / 86400)) . " days ago";
 		}
 		
 		// If the timestamp was within the last month
@@ -241,7 +241,7 @@ abstract class Time_Fuzzy {
 				echo "a week ago";
 			}
 			
-			return NumberToWord::convert(round($weeksAgo)) . " weeks ago";
+			return Data_Number::convert(round($weeksAgo)) . " weeks ago";
 		}
 		
 		// Any other timestamp time
@@ -262,7 +262,7 @@ abstract class Time_Fuzzy {
 				}
 				else if($monthsAgo <= 3)
 				{
-					return NumberToWord::convert($monthsAgo) . " months ago";
+					return Data_Number::convert($monthsAgo) . " months ago";
 				}
 				
 				return "this " . date('F', $timestamp);

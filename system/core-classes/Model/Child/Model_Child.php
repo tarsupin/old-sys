@@ -75,7 +75,7 @@ abstract class Example_Child extends Model_Child {
 		],
 		
 		'tags' => [
-			'parent_id'		=> self::CANNOT_MODIFY
+			'parent_id'		=> [self::CANNOT_MODIFY]
 		],
 		
 		'index' => [

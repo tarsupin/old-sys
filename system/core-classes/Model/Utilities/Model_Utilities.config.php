@@ -1,0 +1,18 @@
+<?php
+
+class Model_Utilities_config {
+	
+	
+/****** Class Variables ******/
+	public $classType = "standard";
+	public $className = "Model_Utilities";
+	public $title = "Model Utilities Class";
+	public $version = 1.0;
+	public $author = "Brint Paris";
+	public $license = "UniFaction License";
+	public $website = "http://unifaction.com";
+	public $description = "Provides helper and utility functions for models.";
+	
+	public $data = array();
+	
+}

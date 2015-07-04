@@ -322,7 +322,7 @@ abstract class Sanitize {
 			$origin = $backtrace[2 + $traceDepth];
 			
 			$function = (isset($origin['class']) ? $origin['class'] . $origin['type'] : "") . (isset($origin['function']) ? $origin['function'] : "");
-			$params = isset($origin['args']) ? Text_Utilities::convertArrayToArgumentString($origin['args']) : "";
+			$params = isset($origin['args']) ? Data_Utilities::convertArrayToArgumentString($origin['args']) : "";
 			
 			// Log the threat
 			Security_ThreatTracker::log("input", $severity, $threatText, $threatData, $function, $params, $origin['file'], $backtrace[1 + $traceDepth]['line']);

@@ -115,7 +115,7 @@ abstract class Security_ThreatTracker {
 	// Security_ThreatTracker::log($threatType, $severity, $threatText, $threatData, $function, $params, $file, $line);
 	{
 		// Serialize the tracked information
-		$threatData = Serialize::encode($threatData);
+		$threatData = json_encode($threatData);
 		
 		// Prepare Values
 		$file = str_replace(dirname(SYS_PATH), "", $file);
