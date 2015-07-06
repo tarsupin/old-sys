@@ -212,11 +212,24 @@ abstract class Model extends Model_Utilities {
 	public static function exists
 	(
 		$lookupID		// <T> The ID of the row to retrieve (based on table's $lookupKey)
-	)					// RETURNS <str:mixed> The data from the row.
+	)					// RETURNS <bool> The data from the row.
 	
 	// $recordExists = static::exists($lookupID);
 	{
 		return (bool) Database::selectOne("SELECT " . static::$lookupKey . " FROM `" . static::$table . "` WHERE `" . static::$lookupKey . "` = ? LIMIT 1", array($lookupID));
+	}
+	
+	
+/****** Traverse the class, including all of its children and joined tables ******/
+	public static function traverse
+	(
+		$searchArgs = ['_GET']	// <array> An array of search arguments.
+	,	&$rowCount = 0			// <int> The number of rows that were located in this search.
+	)							// RETURNS <str:mixed> The data from the row.
+	
+	// $results = static::search($searchArgs = $_GET, $rowCount = 0);
+	{
+		return static::search($searchArgs, $rowCount, true);
 	}
 	
 	
@@ -225,9 +238,10 @@ abstract class Model extends Model_Utilities {
 	(
 		$searchArgs = ['_GET']	// <array> An array of search arguments.
 	,	&$rowCount = 0			// <int> The number of rows that were located in this search.
+	,	$pullChildren = false	// <bool> TRUE if you want to pull all child records, FALSE if not.
 	)							// RETURNS <str:mixed> The data from the row.
 	
-	// $results = static::search($searchArgs = $_GET, $rowCount = 0);
+	// $results = static::search($searchArgs = $_GET, $rowCount = 0, $pullChildren = false);
 	{
 		// If no search arguments are provided, default to using $_GET
 		if($searchArgs == ['_GET']) { $searchArgs = $_GET; }
@@ -261,7 +275,110 @@ abstract class Model extends Model_Utilities {
 		$rowCount = Database::selectValue("SELECT COUNT(*) as totalNum FROM `" . static::$table . "`" . ($whereStr ? " WHERE " . $whereStr : ""), $sqlArray);
 		
 		// Pull the rows located by the search
-		return Database::selectMultiple("SELECT " . $columns . " FROM `" . static::$table . "`" . ($whereStr ? " WHERE " . $whereStr : "") . $orderStr . $limitStr, $sqlArray);
+		$results = Database::selectMultiple("SELECT " . $columns . " FROM `" . static::$table . "`" . ($whereStr ? " WHERE " . $whereStr : "") . $orderStr . $limitStr, $sqlArray);
+		
+		// For searches that are not traversing the tree, we can end here.
+		// Also, if there were no results, return now before trying to locate children classes.
+		if($pullChildren == false or !$results)
+		{
+			return $results;
+		}
+		
+		// Now for the complicated work....
+		
+		/*
+			We have an important mapping behavior to consider:
+			
+			The lookup ID's of the child results are important for mapping child records BACK to their parent records.
+			Therefore, we need to map the child records to the result ID's of the parent using the lookup key
+			that was used to call them.
+			
+			For example:
+				The first RESULT ID is always equal to 0. The LOOKUP KEY is "id" and it matched a LOOKUP ID of "7".
+				By mapping LOOKUP ID of 7 to RESULT ID of 0, we can save the records properly.
+		*/
+		
+		// Extract the lookup ID's from the results
+		// This is essentially doing array_map()'s work, but we need to pass the lookup key, which it doesn't allow.
+		$mapLookupIDToResultID = [];
+		
+		foreach($results as $key => $res)
+		{
+			$mapLookupIDToResultID[$res[static::$lookupKey]] = $key;
+		}
+		
+		// Now that we have the IDs that were tracked, we can load them into the relationships.
+		// Find the relationship classes and include them with the traversal
+		foreach(static::$schema['relationships'] as $relColumn => $relatedClass)
+		{
+			// Get insight into the type of class that we're joining
+			$relationshipType = get_parent_class($relatedClass);
+			
+			if($relationshipType == "Model_Join")
+			{
+				$joinedClass = $relatedClass::$relatedClass;
+				$canHaveMany = true;
+				
+				// Get the child results through the join table
+				$childResults = Database::selectMultiple("SELECT t1." . $relatedClass::$lookupKey . " as _t1_lookupID, t2.* FROM " . $relatedClass::$table . " t1 INNER JOIN " . $joinedClass::$table . " t2 ON t1." . $relatedClass::$relatedKey . "=t2." . $joinedClass::$lookupKey . " WHERE t1." . $relatedClass::$lookupKey . " IN (?" . str_repeat(', ?', count($mapLookupIDToResultID) - 1) . ")", array_keys($mapLookupIDToResultID));
+				
+				// We need to set the keys in the child results to match the ID's of the parent results
+				// so that we know how they relate.
+				$newChildResults = [];
+				
+				foreach($childResults as $row)
+				{
+					// We need to remove the lookup ID from the list, but preserve the value
+					$recordID = $mapLookupIDToResultID[$row['_t1_lookupID']];
+					unset($row['_t1_lookupID']);
+					
+					$newChildResults[$recordID][] = $row;
+				}
+				
+				// Now we load the child results into the parent records
+				foreach($newChildResults as $resultID => $row)
+				{
+					$results[$resultID][$relColumn] = $row;
+				}
+			}
+			
+			else if ($relationshipType == "Model_Child")
+			{
+				// Get the child records
+				$childResults = Database::selectMultiple("SELECT t1.* FROM " . $relatedClass::$table . " t1 WHERE " . $relatedClass::$lookupKey . " IN (?" . str_repeat(', ?', count($mapLookupIDToResultID) - 1) . ")", array_keys($mapLookupIDToResultID));
+				
+				// We need to set the keys in the child results to match the ID's of the parent results
+				// so that we know how they relate.
+				$newChildResults = [];
+				
+				foreach($childResults as $row)
+				{
+					$newChildResults[$mapLookupIDToResultID[$row[$relatedClass::$lookupKey]]][] = $row;
+				}
+				
+				// Now we load the child results into the parent records
+				// However, we first check if there can be multiple children rows - since this
+				// will affect how we append each row.
+				if($relatedClass::$canHaveMany == true)
+				{
+					foreach($newChildResults as $resultID => $row)
+					{
+						$results[$resultID][$relColumn][] = $row;
+					}
+				}
+				
+				// If there is only one child record allowed, we can include the child as an exact match
+				else
+				{
+					foreach($newChildResults as $resultID => $row)
+					{
+						$results[$resultID][$relColumn] = $row;
+					}
+				}
+			}
+		}
+		
+		return $results;
 	}
 	
 	

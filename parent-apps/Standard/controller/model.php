@@ -45,6 +45,8 @@ echo '
 .genTable td { padding:4px; background: #fafafa; font-family:Arial, Helvetica; font-size:12px; color:#777; }
 .genTable tr.even td { background: #f6f6f6; }
 .genTable tr:hover td { background: #f2f2f2; }
+.genTable input[text], .genTable select { min-width:250px; }
+.genTable textarea { min-width:350px; min-height:70px; }
 </style>';
 
 // Prepare Values

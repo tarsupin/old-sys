@@ -1278,8 +1278,8 @@ abstract class Model_Utilities {
 		switch($requestMethod)
 		{
 			case "GET":         $response = static::getRequest($lookupID, $request);       break;
-			case "GET_SEARCH":  $response = static::getSearchRequest($request);              break;
-			case "POST":        $response = static::postRequest($request);                   break;
+			case "GET_SEARCH":  $response = static::getSearchRequest($request);            break;
+			case "POST":        $response = static::postRequest($request);                 break;
 			case "PUT":         $response = static::putRequest($lookupID, $request);       break;
 			case "PATCH":       $response = static::patchRequest($lookupID, $request);     break;
 			case "DELETE":      $response = static::deleteRequest($lookupID, $request);    break;
@@ -1432,7 +1432,7 @@ abstract class Model_Utilities {
 	
 	// $response = static::getSearchRequest($request);
 	{
-		return static::search((isset($request['url']['queryValues']) ? $request['url']['queryValues'] : []));
+		return static::traverse((isset($request['url']['queryValues']) ? $request['url']['queryValues'] : []));
 	}
 	
 	
